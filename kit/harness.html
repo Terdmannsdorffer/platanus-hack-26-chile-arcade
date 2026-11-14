@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<!--
+  Arnes de prueba local. Carga el juego igual que el dashboard oficial: Phaser 3.87.0 desde el CDN
+  y el codigo dentro de una funcion con try/catch.
+    node kit/serve.mjs            y abrir  localhost:3111/kit/harness.html        -> corre ../game.js
+                                           localhost:3111/kit/harness.html?demo   -> corre assets.js + demo.js
+  No reemplaza a `npm run dev` (eso lo corre el usuario); sirve para probar con un navegador automatizado.
+-->
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    html, body, #game-root { width: 100%; height: 100%; margin: 0; }
+    body { overflow: hidden; background: #000; }
+  </style>
+</head>
+<body>
+  <div id="game-root"></div>
+  <script src="https://cdn.jsdelivr.net/npm/phaser@3.87.0/dist/phaser.min.js"></script>
+  <script>
+    (async () => {
+      const files = location.search.includes('demo') ? ['assets.js', 'demo.js'] : ['../game.js'];
+      let code = '';
+      for (const f of files) code += await (await fetch(f + '?t=' + Date.now())).text() + '\n';
+      window.__errors = [];
+      window.addEventListener('error', (e) => window.__errors.push(String(e.message)));
+      try {
+        new Function(code)();
+      } catch (error) {
+        window.__errors.push(String(error));
+        console.error('Game initialization error:', error);
+      }
+    })();
+  </script>
+</body>
+</html>

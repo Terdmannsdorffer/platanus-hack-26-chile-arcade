@@ -1,5 +1,5 @@
 {
-  "game_name": "Platanus Hack: Santiago Brick Breaker",
-  "description": "Batalla campal por romper la mayor cantidad de ladrillos",
+  "game_name": "PROD IS DOWN",
+  "description": "Roguelike co-op: producción se cayó en plena hackathon. Aplasta bugs, tira el gacha de npm install y haz deploy antes de que la deuda técnica te entierre.",
   "player_mode": "two_player"
 }
