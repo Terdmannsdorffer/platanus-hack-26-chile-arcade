@@ -7,11 +7,12 @@ const DEV = 0;
 // alias cortos (el minificador no acorta nombres de propiedad): cada llamada ahorra bytes.
 // Van primero para que existan antes de cualquier uso. fe = forEach, no enumerable para no salir en for...in
 Object.defineProperty(Array.prototype, 'fe', { value: [].forEach });
-'Ti:setTint,Te:setText,Vi:setVisible,Al:setAlpha,Sc:setScale,Tx:setTexture,Bm:setBlendMode,Po:setPosition,Tf:setTintFill,Fx:setFlipX,Dp:setDepth,Db:disableBody,Or:setOrigin,Sf:setScrollFactor'.split(',').fe((p) => {
+'Ti:setTint,Te:setText,Vi:setVisible,Al:setAlpha,Sc:setScale,Tx:setTexture,Bm:setBlendMode,Po:setPosition,Tf:setTintFill,Fx:setFlipX,Dp:setDepth,Db:disableBody,Or:setOrigin,Sf:setScrollFactor,Vx:setVelocityX,Vy:setVelocityY,Vl:setVelocity,Sz:setSize,Of:setOffset,Ag:setAllowGravity,Mv:setMaxVelocity,Cw:setCollideWorldBounds,Ct:clearTint'.split(',').fe((p) => {
   const [a, k] = p.split(':');
-  Phaser.GameObjects.GameObject.prototype[a] = function (...v) {
+  // en GameObject y en el cuerpo de fisica: el alias llama al metodo que tenga quien lo recibe
+  [Phaser.GameObjects.GameObject, Phaser.Physics.Arcade.Body].fe((c) => c.prototype[a] = function (...v) {
     return this[k](...v);
-  };
+  });
 });
 
 // ---------------------------------------------------------------- constantes y datos
@@ -51,7 +52,7 @@ const EN = [
   [10, 110, 14, 45, 5, 3, 8, 6, 0x2456c9], // 4 MEMORY LEAK
   [10, 28, 8, 80, 0, 1, 1, 99, 0x2456c9], // 5 mini leak
   [11, 55, 18, 60, 4, 3, 6, 8, GOLD], // 6 RACE CONDITION
-  [12, 560, 20, 45, 0, 12, 40, 99, RED], // 7 jefe MERGE CONFLICT
+  [12, 400, 20, 45, 0, 12, 40, 99, RED], // 7 jefe MERGE CONFLICT (primer jefe: vida baja para que un novato lo pase)
   [13, 520, 20, 90, 0, 12, 40, 99, CYAN], // 8 jefe KERNEL PANIC
   [44, 480, 20, 70, 0, 12, 40, 99, PINK], // 9 jefe CODE REVIEW
 ];
@@ -526,7 +527,7 @@ function music(hz) {
 // ---------------------------------------------------------------- estado
 let S, SA, SP, cam, G, mode, demo = 1, stage, debt, lvl, coins, cshow, score, kills, inv, ord, paid, pity, two;
 let P, players, enemies, bullets, cn, map, layer, cols, lv, top, spots, terms, dep, boss, stg, dirCr, dirT;
-let combo, comboT, stopT, slow, fx, fq, rolls, spinL, rb, nums, ni, em, camPt, demoT, botJ, cardT;
+let combo, comboT, stopT, zf, slow, fx, fq, rolls, spinL, rb, nums, ni, em, camPt, demoT, botJ, cardT;
 let atk, cad, spd, crit, mhp, dodge, cdm, startWith = -1, pp, ppT = 0;
 let hP, ha, dT, dF, dN, cT, cB, sT, stT, arw, bN, bF, bB, coT, cd1, cd2, vig, ii, bgs, tO, g1, g2, prm, tl;
 let gp, gs, gT, lt, rep, pO, pR, stH, oT, oq, nm, nc, nT, oL, cT2, pT, cT3, bl, noFx, sf = 0, sky, amb, bio, dk, inc, cx, zt = 1, tn = 0, lp = 0, fin, won, itc, bk = 0, sun;
@@ -751,9 +752,12 @@ function play(dt) {
     if (performance.now() - lastIn > 6e4) return go(-1);
   }
   if (stopT > 0) {
+    // durante el TIEMPO DETENIDO solo actua DEADLINE (zf); el resto del mundo sigue congelado
+    if (zf) zf(dt);
     if ((stopT -= dt) <= 0) {
       SP.resume();
       zt = 1;
+      zf = 0;
       if (cx) cx.reset();
     }
     return;
@@ -799,8 +803,8 @@ function play(dt) {
   }
   dk.Vi(inc == 2 && !stg).Po(camPt.x, camPt.y);
   const bt = AC && AC.currentTime > bk ? Mmax(0, 1 - (AC.currentTime - bk) * 5) : 0;
-  sky.Ti(flow ? hsv(tn / 3e3) : lvl > 14 && (tn / 500 | 0) % 2 ? RED : BIOC[bio]).Al(.35 + bt * .25);
-  sun.fe((s) => s.Sc(3 + bt * .2)); // la senal late con el bombo (las dos capas juntas para que el ovalo calce)
+  sky.Ti(stg == 1 ? RED : flow ? hsv(tn / 3e3) : lvl > 14 && (tn / 500 | 0) % 2 ? RED : BIOC[bio]).Al(.35 + bt * .25);
+  sun.fe((s) => s.Sc(3 + bt * .2).Ti(stg == 1 ? RED : 0xffffff)); // la senal late con el bombo (las dos capas juntas para que el ovalo calce)
   if (bl) bl.strength = .3 + flow * .12;
   bgs.fe((b, i) => {
     b.Ti(sky.tintTopLeft).Al(i ? .6 + bt * .2 : .4);
@@ -1027,7 +1031,7 @@ function use(p) {
 function join(i) {
   const o = P[1 - i], al = o && !o.dn, x = al ? o.x : 90, y = al ? o.y - 30 : 17 * T - 14;
   const p = players.create(x, y, i ? 'q0' : 's0').Dp(4);
-  p.body.setSize(14, 26).setOffset(5, 2).setMaxVelocity(900, 640).setCollideWorldBounds(true);
+  p.body.Sz(14, 26).Of(5, 2).Mv(900, 640).Cw(true);
   Object.assign(p, { i, face: 1, cdD: 0, cdS: 0, dT: 0, iv: 1.5, coy: 0, jb: 0, air: 0, ft: 0, drop: 0, sh: inv[11] ? 1 : 0, shT: 0, dn: 0, rv: 0, sx: x, sy: y, st: 0, shots: 0, dr: [], cr: 2, dtm: 0, wg: 1, vy0: 0, ch: 0 });
   p.shi = SA.image(x, y, 'ring').Sc(.65).Ti(CYAN).Al(.6).Dp(5).Bm(1).Vi(0);
   P[i] = p;
@@ -1086,11 +1090,11 @@ function upP(p, dt) {
   p.vy0 = b.velocity.y;
   if (p.dT > 0) {
     if ((p.dT -= dt) <= 0) {
-      b.setAllowGravity(true);
+      b.Ag(true);
       b.velocity.scale(.3);
     } else fxi(p.texture.key, p.x, p.y, pc, 1, 1, 220).Fx(p.flipX).Bm(0).Al(.6);
   } else {
-    b.setVelocityX(hz ? p.face * spd : 0);
+    b.Vx(hz ? p.face * spd : 0);
     if (p.jb > 0) {
       const tl = layer.getTileAtWorldXY(p.x, b.bottom + 4);
       if (D && g && tl && tl.index % 3 == 2) {
@@ -1103,12 +1107,12 @@ function upP(p, dt) {
         ring(p.x, b.bottom, CYAN, .9);
       }
     }
-    if (!dn(i, '2') && b.velocity.y < -180) b.setVelocityY(-180);
+    if (!dn(i, '2') && b.velocity.y < -180) b.Vy(-180);
     if (ht(i, '3') && p.cdD <= 0) {
       let ax = (Rr ? 1 : 0) - (L ? 1 : 0), ay = (D ? 1 : 0) - (U ? 1 : 0);
       if (!ax && !ay) ax = p.face;
       const l = M.hypot(ax, ay);
-      b.setAllowGravity(false).setVelocity(ax / l * 560, ay / l * 560);
+      b.Ag(false).Vl(ax / l * 560, ay / l * 560);
       p.dT = .16;
       p.iv = Mmax(p.iv, .26);
       p.cdD = 2.2 * cdm;
@@ -1176,7 +1180,7 @@ function upP(p, dt) {
 }
 
 function jump(p, v) {
-  p.body.setVelocityY(v);
+  p.body.Vy(v);
   p.coy = p.jb = 0;
   sfx('jump');
   burst(p.x, p.body.bottom, STEEL, 4);
@@ -1203,7 +1207,7 @@ function shoot(x, y, a, sp, dmg, own, c, sx, sy, life) {
   const b = bullets.get(x, y, 'px');
   b.enableBody(true, x, y, true, true);
   b.Sc(sx, sy).setRotation(a).Ti(c).Dp(5).Al(1).Bm(1);
-  b.body.setAllowGravity(false).setVelocity(Mcos(a) * sp, Msin(a) * sp);
+  b.body.Ag(false).Vl(Mcos(a) * sp, Msin(a) * sp);
   Object.assign(b, { own, dmg, life, pr: own ? inv[6] : 0, hit: [], gh: 0, kbk: 0, cr: 0, rk: 0, nb: 0, c });
   return b;
 }
@@ -1281,7 +1285,7 @@ function hurtP(p, d, sx, pit) {
   sk(140, .012);
   burst(p.x, p.y, RED, 8);
   stop(.06);
-  if (!pit) p.body.setVelocity(sg(p.x - sx || 1) * 180, -220);
+  if (!pit) p.body.Vl(sg(p.x - sx || 1) * 180, -220);
   if (p.hp <= 0) {
     if (inv[18]) {
       inv[18]--;
@@ -1350,8 +1354,8 @@ function spawnE(k, x, y, el) {
   const t = EN[k], e = enemies.get(x, y, 's' + t[0]), f = k == 1 || k == 2 || k > 7;
   el = el || 0;
   e.Tx('s' + t[0]).enableBody(true, x, y, true, true);
-  e.Sc((k == 4 ? 2 : 1) * (el == 1 ? 1.25 : 1)).Dp(3).Al(1).Fx(0).clearTint();
-  e.body.setAllowGravity(!f).setSize(e.frame.width * .8, e.frame.height * .8).setVelocity(0, 0).setMaxVelocity(600, 700).setCollideWorldBounds(false);
+  e.Sc((k == 4 ? 2 : 1) * (el == 1 ? 1.25 : 1)).Dp(3).Al(1).Fx(0).Ct();
+  e.body.Ag(!f).Sz(e.frame.width * .8, e.frame.height * .8).Vl(0, 0).Mv(600, 700).Cw(false);
   const hm = (1 + .16 * (lvl - 1)) * (1 + .08 * itc) * (1 + .5 * lp) * (two ? 1.5 : 1) * [1, 3, 1.8, 2][el], dm = (1 + .1 * (lvl - 1)) * (1 + .4 * lp) * (el == 3 ? 2 : 1);
   Object.assign(e, {
     k, el, hp: t[1] * hm, mhp: t[1] * hm, dm, dmg: t[2] * dm, sp: t[3] * Mmin(1.35, 1 + .015 * (lvl - 1)) * (el == 2 ? 1.5 : 1),
@@ -1371,7 +1375,7 @@ function director(dt) {
   dirCr += dt * (.35 + .17 * lvl) * (1 + .3 * lp) * (two ? 1.5 : 1) * (stg ? .5 : 1) * (inc == 1 ? 2 : 1);
   if ((dirT -= dt) > 0) return;
   dirT = rnd(.8, 2.2);
-  const n = foes().length, cap = Mmin(34 + 8 * lp, 2 + 2 * lvl) * (two ? 1.3 : 1), k = pick(unl()), c = EN[k][4];
+  const n = foes().length, cap = Mmin(34 + 8 * lp, 2 + 2 * lvl) * (two ? 1.3 : 1) * (stg ? .2 * stage : 1), k = pick(unl()), c = EN[k][4];
   let el = lvl >= 4 && dirCr >= c * 3 && R() < Mmin(.5, .12 + .02 * lvl + .1 * lp) ? ri(1, 3) : 0;
   for (let j = 0; j < (k < 2 ? 3 : 1) && n + j < cap && dirCr >= c * (el ? 3 : 1); j++) {
     const f = k == 1 || k == 2;
@@ -1393,22 +1397,22 @@ function director(dt) {
 
 function walk(e, dx, dy, ad, dt) {
   const b = e.body;
-  b.setVelocityX(ad > 6 ? sg(dx) * e.sp : 0);
+  b.Vx(ad > 6 ? sg(dx) * e.sp : 0);
   if (b.blocked.down) {
-    if (b.blocked.left || b.blocked.right) b.setVelocityY(-430);
-    else if (dy < -70 && ad < 160 && R() < dt * 1.2) b.setVelocityY(-520);
+    if (b.blocked.left || b.blocked.right) b.Vy(-430);
+    else if (dy < -70 && ad < 160 && R() < dt * 1.2) b.Vy(-520);
   }
 }
 
 function upE(e, dt) {
   const b = e.body, k = e.k;
-  if (e.fl > 0 && (e.fl -= dt) <= 0) e.tn ? e.Ti(e.tn) : e.clearTint();
+  if (e.fl > 0 && (e.fl -= dt) <= 0) e.tn ? e.Ti(e.tn) : e.Ct();
   if (e.sp0 > 0) {
     e.Al(R() < .5 ? .25 : 1).Tf(pick([CYAN, PINK, 0xffffff]));
-    b.setVelocity(0, 0);
+    b.Vl(0, 0);
     if ((e.sp0 -= dt) <= 0) {
       e.Al(1);
-      e.tn ? e.Ti(e.tn) : e.clearTint();
+      e.tn ? e.Ti(e.tn) : e.Ct();
       ring(e.x, e.y, EN[k][8], 1.2);
     }
     return;
@@ -1416,7 +1420,7 @@ function upE(e, dt) {
   if (e.boss) return upBoss(e, dt);
   if (e.el && R() < dt * 1.5) fxi('s42', e.x + rnd(-24, 24), e.y - 24, e.tn, 1, 2, 700).Bm(0);
   const p = nearP(e.x, e.y);
-  if (!p) return b.setVelocityX(0);
+  if (!p) return b.Vx(0);
   const dx = p.x - e.x, dy = p.y - e.y, ad = ab(dx), sx = sg(dx) || 1;
   if (k < 2) e.Tx('s' + (EN[k][0] + (tn / (k ? 80 : 150) | 0) % 2));
   e.Fx(dx < 0);
@@ -1443,7 +1447,7 @@ function upE(e, dt) {
     }
   } else if (k == 3) {
     if (e.w > 0) {
-      b.setVelocityX(0);
+      b.Vx(0);
       e.Tf((e.w * 20 | 0) % 2 ? 0xffffff : RED);
       if ((e.w -= dt) <= 0) {
         e.hp = 0;
@@ -1456,7 +1460,7 @@ function upE(e, dt) {
     }
   } else if (k == 6) {
     if (e.st == 1) {
-      b.setVelocityX(0);
+      b.Vx(0);
       e.x += rnd(-1.5, 1.5);
       if (e.t <= 0) {
         e.st = 2;
@@ -1464,14 +1468,14 @@ function upE(e, dt) {
         e.cd = sx;
       }
     } else if (e.st == 2) {
-      b.setVelocityX(e.cd * 460);
+      b.Vx(e.cd * 460);
       if ((tn / 40 | 0) % 2) burst(e.x, e.y + 6, GOLD, 1);
       if (e.t <= 0 || b.blocked.left || b.blocked.right) {
         e.st = 3;
         e.t = .8;
       }
     } else if (e.st == 3) {
-      b.setVelocityX(0);
+      b.Vx(0);
       if (e.t <= 0) {
         e.st = 0;
         e.t = e.el == 2 ? 1.8 : 3;
@@ -1503,7 +1507,7 @@ function hitE(b, e) {
 
 function dmgE(e, d, cr, sx, kv, nb, dep) {
   if (e.hp <= 0 || e.sp0 > 0 || e.ent > 0) return;
-  d = Mmax(1, M.round(d));
+  d = Mmax(1, M.round(d * (e.vul > 0 ? 2 : 1)));
   e.hp -= d;
   // los jefes reciben golpes mas seguido de lo que dura el destello: solo destellan a veces, para que se vea su dibujo
   if (!e.boss || R() < .15) {
@@ -1518,7 +1522,7 @@ function dmgE(e, d, cr, sx, kv, nb, dep) {
   num(e.x, e.y - 16, d, cr);
   sfx(cr ? 'crit' : 'hit');
   if (kv && !e.boss) {
-    e.body.setVelocity((sg(e.x - sx) || 1) * kv, -140);
+    e.body.Vl((sg(e.x - sx) || 1) * kv, -140);
     e.stun = .25;
   }
   if (nb && inv[12] && R() < Mmin(.6, .15 * inv[12])) chain(e);
@@ -1556,7 +1560,7 @@ function killE(e, dep) {
     dc(20, () => [-1, 1].fe((s) => {
       const m2 = spawnE(5, x + s * 10, y - 8);
       m2.sp0 = 0;
-      m2.body.setVelocity(s * 160, -300);
+      m2.body.Vl(s * 160, -300);
     }));
   }
   if (e.el) {
@@ -1646,19 +1650,29 @@ function startBoss() {
   cam.flash(250, 255, 60, 60);
   SP.world.setBounds(2400, 0, W, WH, true, true, false, false);
   cam.setBounds(2400, 0, W, WH);
-  foes().fe((e) => e.x < 2400 && refund(e));
+  // escenario limpio para la presentacion del jefe: sin reembolso (antes los bugs del nivel reaparecian en la arena) y unos segundos de gracia
+  foes().fe((e) => {
+    e.hp = 0;
+    e.Db(true, true);
+  });
+  dirCr = -3;
   P.fe((p) => {
     if (p && p.x < 2420) p.dn ? p.tb.Po(dep.x - 60, dep.y - 10) : p.body.reset(dep.x - 60, dep.y - 30);
   });
-  const w = rect(2400, 0, 6, WH, RED, .8).Dp(5);
-  tw(w, { alpha: .2, yoyo: true, repeat: -1, duration: 300 });
-  lv.push(w);
+  // la arena queda cerrada por dos paredes laser que laten
+  [2400, 3194].fe((x) => {
+    const w = rect(x, 0, 6, WH, RED, .8).Dp(5);
+    tw(w, { alpha: .2, yoyo: true, repeat: -1, duration: 300 });
+    lv.push(w);
+  });
   // el jefe final es DEADLINE (sprite 43); desde el segundo loop cada jefe trae a otro de escolta
   const k = fin ? 8 : 7 + (stage - 1) % 3, ni = fin ? 3 : k - 7, e = boss = mkBoss(k, fin ? 1.5 : 1);
   if (fin) {
     e.fin = 1;
-    e.Tx('s43').Sc(1.3).body.setSize(70, 80);
+    e.Tx('s43').Sc(1.3).body.Sz(70, 80);
   }
+  // sala de guerra: una pantalla gigante al fondo de la arena con el jefe en vivo y la severidad del incidente
+  lv.push(rect(2460, 200, 580, 230, 0, .6).Dp(-8.6), SA.image(2750, 320, e.texture.key).Sc(2.2).Ti(RED).Al(.25).Dp(-8.5), txt(2750, 214, 'INCIDENTE SEV-1', 18, RED, .5).Dp(-8.5));
   mus(fin ? 6 : k == 8 ? 4 : 3, 2.5);
   tone(110, 2.5, 'sawtooth', .06, 1760);
   dc(900, () => poseB(e, ni));
@@ -1672,6 +1686,8 @@ function startBoss() {
 
 // DEADLINE vuela como el monitor (k = 8) pero con sus propios ataques, en ciclo
 function dln(e, p, ph, dt) {
+  // AGOTADO despues del tiempo detenido: no ataca (y dmgE le hace dano doble)
+  if ((e.vul -= dt) > 0) return;
   if (!e.st) {
     if (e.t <= 0) {
       e.st = 1 + e.ci++ % 3;
@@ -1701,18 +1717,32 @@ function dln(e, p, ph, dt) {
       e.t = 1.2 * ph;
     }
   } else {
-    // tiempo detenido: todo se congela en negativo, la musica se corta y un anillo de balas se cierra al volver
+    // TIEMPO DETENIDO (estilo ZA WARUDO): el mundo se congela en negativo, pero DEADLINE sigue: clava una manecilla
+    // por hora en una cupula sobre el jugador, apuntandole, y deja dos libres para escapar. Al volver el tiempo salen
+    // todas juntas. Si sobrevives, DEADLINE queda AGOTADO 3 s: no ataca y recibe dano doble
     e.st = 0;
     e.t = 2 * ph;
-    stop(1.3);
+    stop(2.3);
     if (cx) cx.negative();
-    // la musica se pausa y al volver el tiempo sigue desde el mismo paso (como una cinta en pausa)
-    const m = mSong;
+    // la musica se pausa y al volver sigue desde el mismo paso (como una cinta en pausa)
+    const m = mSong, g = ri(0, 10), x = p.x, y = p.y;
+    let n = 0, w = 0;
     mSong = -1;
-    dc(1300, () => boss && (mSong = m, mNext = 0));
+    dc(2300, () => boss && (mSong = m, mNext = 0, e.vul = 3, pop(400, 200, 'AGOTADO: DANO X2', 24, GOLD, 1, 1200)));
     pop(400, 200, 'TIEMPO DETENIDO', 30, WHITE, 1, 1100);
     sfx('boss');
-    for (let j = 0; j < 10; j++) shoot(p.x + Mcos(j * .628) * 180, p.y + Msin(j * .628) * 180, j * .628 + M.PI, 200, 12 * e.dm, 0, RED, 5, 5, 3);
+    zf = (dt) => {
+      if ((w += dt) > .15 && n < 12) {
+        w = 0;
+        // cupula sobre el jugador (el suelo tapa la mitad de abajo), con un hueco de dos manecillas
+        if (n < g || n > g + 1) {
+          const a = M.PI + n * .2856;
+          shoot(x + Mcos(a) * 150, y + Msin(a) * 150, a + M.PI, 300, 12 * e.dm, 0, RED, 13, 4, 2);
+          sfx('tic');
+        }
+        n++;
+      }
+    };
   }
 }
 
@@ -1741,17 +1771,17 @@ function mkBoss(k, f) {
   e.sp0 = 0;
   e.boss = e.ent = e.t = 1;
   e.hp = e.mhp = EN[k][1] * f * (1 + .5 * (stage - 1)) * (1 + .05 * (lvl - 1)) * (1 + .08 * itc) * (two ? 1.6 : 1);
-  e.dmg = 20 * (e.dm *= .5 + stage * .2);
-  e.body.setCollideWorldBounds(true);
-  if (k == 7) e.body.setSize(80, 58).setOffset(8, 14);
-  else if (k == 8) e.body.setSize(72, 56).setOffset(8, 4);
+  e.dmg = 20 * (e.dm *= .3 + stage * .25); // el primer jefe pega bastante menos
+  e.body.Cw(true);
+  if (k == 7) e.body.Sz(80, 58).Of(8, 14);
+  else if (k == 8) e.body.Sz(72, 56).Of(8, 4);
   return e;
 }
 
 function upBoss(e, dt) {
   // el jefe final alterna entre los ataques del monitor y los del ojo
   // en los loops y en el final los jefes atacan mas rapido y usan desde el inicio los patrones de fase 2
-  const p = nearP(e.x, e.y), b = e.body, k = e.k, p2 = e.hp < e.mhp * .4, ph = (p2 ? .65 : 1) / (1 + .3 * (lp + fin));
+  const p = nearP(e.x, e.y), b = e.body, k = e.k, p2 = e.hp < e.mhp * .4, ph = (p2 ? .65 : 1) / (1 + .3 * (lp + fin)) * (stage > 1 ? 1 : 1.3);
   if (p2 && !e.p2) {
     e.p2 = 1;
     e.tn = 0xff8080;
@@ -1763,12 +1793,12 @@ function upBoss(e, dt) {
     sfx('boss');
   }
   if (k > 7) {
-    b.setVelocityY((cam.scrollY + (k > 8 ? 250 : 150 + demo * 200) + Msin(tn / 500) * 20 - e.y) * 3);
-    if (p && (k > 8 || e.st != 2 || e.lt < .7)) b.setVelocityX(cl((p.x + (k > 8 ? Msin(tn / 900) * 220 : 0) - e.x) * 2, -90, 90));
-    else b.setVelocityX(0);
+    b.Vy((cam.scrollY + (k > 8 ? 250 : 150 + demo * 200) + Msin(tn / 500) * 20 - e.y) * 3);
+    if (p && (k > 8 || e.st != 2 || e.lt < .7)) b.Vx(cl((p.x + (k > 8 ? Msin(tn / 900) * 220 : 0) - e.x) * 2, -90, 90));
+    else b.Vx(0);
   }
   // DEADLINE no se queda quieto: recorre la arena en un ocho, mas rapido en HORAS EXTRA
-  if (e.fin) b.setVelocity((2800 + Msin(tn / 900 / ph) * 330 - e.x) * 2, (cam.scrollY + 230 + Msin(tn / 450 / ph) * 110 - e.y) * 2);
+  if (e.fin) b.Vl((2800 + Msin(tn / 900 / ph) * 330 - e.x) * 2, (cam.scrollY + 230 + Msin(tn / 450 / ph) * 110 - e.y) * 2);
   if (e.ent > 0) {
     if ((e.ent -= dt) <= 0) sk(250, .015);
     return;
@@ -1779,20 +1809,20 @@ function upBoss(e, dt) {
   if (e.fin) return dln(e, p, ph, dt);
   if (k == 7) {
     if (e.st == 0) {
-      b.setVelocityX(sg(dx) * 45);
+      b.Vx(sg(dx) * 45);
       if (e.t <= 0) {
         e.a = 'ABAC'[e.ci++ % 4];
         e.st = 1;
         e.t = (e.a == 'C' ? .6 : .5) * ph;
       }
     } else if (e.st == 1) {
-      b.setVelocityX(0);
+      b.Vx(0);
       e.x += rnd(-2, 2);
       e.Tf((e.t * 16 | 0) % 2 ? 0xffffff : RED);
       if (e.t <= 0) {
-        e.tn ? e.Ti(e.tn) : e.clearTint();
+        e.tn ? e.Ti(e.tn) : e.Ct();
         if (e.a == 'A') {
-          b.setVelocity(cl(dx / 1.1, -300, 300), -620);
+          b.Vl(cl(dx / 1.1, -300, 300), -620);
           e.st = 2;
         } else if (e.a == 'B') {
           const n = ph < 1 ? 7 : 5;
@@ -1817,15 +1847,15 @@ function upBoss(e, dt) {
         burst(e.x, b.bottom, STEEL, 20);
         ring(e.x, b.bottom, GOLD, 3);
         [-1, 1].fe((s) => shoot(e.x + s * 40, b.bottom - 12, s > 0 ? 0 : M.PI, 300, 16 * e.dm, 0, GOLD, 8, 12, 1.2));
-        b.setVelocityX(0);
+        b.Vx(0);
         e.st = 0;
         e.t = 1.1 * ph;
       }
     } else {
-      b.setVelocityX(e.cd * 420);
+      b.Vx(e.cd * 420);
       burst(e.x - e.cd * 40, b.bottom, STEEL, 1);
       if (e.t <= 0 || (e.t < 1.3 && (b.blocked.left || b.blocked.right))) {
-        b.setVelocityX(0);
+        b.Vx(0);
         sk(200, .012);
         e.st = 0;
         e.t = 2.1 * ph;
