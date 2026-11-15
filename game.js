@@ -4,9 +4,19 @@
 (() => {
 const DEV = 0;
 
+// alias cortos (el minificador no acorta nombres de propiedad): cada llamada ahorra bytes.
+// Van primero para que existan antes de cualquier uso. fe = forEach, no enumerable para no salir en for...in
+Object.defineProperty(Array.prototype, 'fe', { value: [].forEach });
+'Ti:setTint,Te:setText,Vi:setVisible,Al:setAlpha,Sc:setScale,Tx:setTexture,Bm:setBlendMode,Po:setPosition,Tf:setTintFill,Fx:setFlipX,Dp:setDepth,Db:disableBody,Or:setOrigin,Sf:setScrollFactor'.split(',').fe((p) => {
+  const [a, k] = p.split(':');
+  Phaser.GameObjects.GameObject.prototype[a] = function (...v) {
+    return this[k](...v);
+  };
+});
+
 // ---------------------------------------------------------------- constantes y datos
 const W = 800, H = 600, T = 32, MW = 100, MH = 22, WH = MH * T;
-const M = Math, R = M.random, ab = M.abs, sg = M.sign;
+const M = Math, R = M.random, ab = M.abs, sg = M.sign, Mmin = M.min, Mmax = M.max, Msin = M.sin, Mcos = M.cos;
 const rnd = (a, b) => a + R() * (b - a);
 const ri = (a, b) => a + (R() * (b - a + 1) | 0);
 const pick = (a) => a[R() * a.length | 0];
@@ -273,7 +283,7 @@ function texs() {
   c.stroke();
   t.refresh();
   // 'glow': brillo radial. 'dk': oscuridad con un hueco de luz en el centro (DARK MODE)
-  [['glow', '#fff', '#fff0', 1], ['dk', '#0000', '#000', .25]].forEach(([k, a, b, p]) => {
+  [['glow', '#fff', '#fff0', 1], ['dk', '#0000', '#000', .25]].fe(([k, a, b, p]) => {
     t = cv(k, 64, 64);
     c = t.getContext();
     const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
@@ -327,7 +337,7 @@ function initAudio(c) {
   DL.connect(gn(.5, MB));
   WB.connect(gn(.5, DL));
   // onda de pulso al 25 %: el timbre clasico de melodia de 8 bits
-  for (let n = 1; n < 24; n++) re[n] = M.sin(n * M.PI / 4) / n;
+  for (let n = 1; n < 24; n++) re[n] = Msin(n * M.PI / 4) / n;
   PW = AC.createPeriodicWave(re, new Float32Array(24));
   NB = AC.createBuffer(1, AC.sampleRate / 2, AC.sampleRate);
   const d = NB.getChannelData(0);
@@ -449,7 +459,7 @@ const mus = (i, dl) => {
 function music(hz) {
   if (!MG || mSong < 0 || (!hz && AC.state != 'running')) return;
   const [bpm, tr, ph, st, pg, ld] = SONGS[mSong], pl = mode == 'PLAY' && !demo;
-  const sd = 15 / bpm / (pl ? 1 + M.min(lvl, 20) * .006 : 1) / (mSong > 5 && boss ? 1.5 - boss.hp / boss.mhp / 2 : 1);
+  const sd = 15 / bpm / (pl ? 1 + Mmin(lvl, 20) * .006 : 1) / (mSong > 5 && boss ? 1.5 - boss.hp / boss.mhp / 2 : 1);
   const fv = mode == 'PAUSE' || mode == 'OVER' ? 500 : pl && lowHp ? 1400 : 2e4;
   if (fv != mfv) MF.frequency.setTargetAtTime(mfv = fv, AC.currentTime, .15);
   if (mNext < AC.currentTime) mNext = AC.currentTime + .05;
@@ -466,7 +476,7 @@ function music(hz) {
     // intensidad 0-4: sube al instante (cada medio compas) y baja de a un nivel por compas
     if (s % 8 == 0) {
       const n = pl ? foes().filter((e) => ab(e.x - camPt.x) < 500).length : 0;
-      const ti = mFI >= 0 ? mFI : !pl ? 2 : boss ? 3 + boss.p2 : flow ? 4 : M.min(3, (n > 0) + (n > 3) + (combo > 9));
+      const ti = mFI >= 0 ? mFI : !pl ? 2 : boss ? 3 + boss.p2 : flow ? 4 : Mmin(3, (n > 0) + (n > 3) + (combo > 9));
       if (ti > mI) mI = ti;
       else if (!s && ti < mI) mI--;
     }
@@ -514,7 +524,7 @@ function music(hz) {
 }
 
 // ---------------------------------------------------------------- estado
-let S, cam, G, mode, demo = 1, stage, debt, lvl, coins, cshow, score, kills, inv, ord, paid, pity, two;
+let S, SA, SP, cam, G, mode, demo = 1, stage, debt, lvl, coins, cshow, score, kills, inv, ord, paid, pity, two;
 let P, players, enemies, bullets, cn, map, layer, cols, lv, top, spots, terms, dep, boss, stg, dirCr, dirT;
 let combo, comboT, stopT, slow, fx, fq, rolls, spinL, rb, nums, ni, em, camPt, demoT, botJ, cardT;
 let atk, cad, spd, crit, mhp, dodge, cdm, startWith = -1, pp, ppT = 0;
@@ -523,16 +533,16 @@ let gp, gs, gT, lt, rep, pO, pR, stH, oT, oq, nm, nc, nT, oL, cT2, pT, cT3, bl, 
 
 // ---------------------------------------------------------------- ayudantes de Phaser
 Phaser.GameObjects.GameObject.prototype.sf = function (d) {
-  return this.setScrollFactor(0).setDepth(d);
+  return this.Sf(0).Dp(d);
 };
-const txt = (x, y, s, z, c, ox, oy) => S.add.bitmapText(x, y, 'f', s, z || 12).setTint(c || WHITE).setOrigin(ox || 0, oy || 0);
-const rect = (x, y, w, h, c, a) => S.add.image(x, y, 'px').setOrigin(0).setScale(w / 2, h / 2).setTint(c).setAlpha(a == null ? 1 : a);
+const txt = (x, y, s, z, c, ox, oy) => SA.bitmapText(x, y, 'f', s, z || 12).Ti(c || WHITE).Or(ox || 0, oy || 0);
+const rect = (x, y, w, h, c, a) => SA.image(x, y, 'px').Or(0).Sc(w / 2, h / 2).Ti(c).Al(a == null ? 1 : a);
 const hud = (o) => (ha.push(o), o.sf(20));
 const hsv = (h) => Phaser.Display.Color.HSVToRGB(h % 1, .8, 1).color;
 const sk = (d, i) => cam.shake(d, i);
 const dc = (t, f) => S.time.delayedCall(t, f);
 const tw = (t, o) => S.tweens.add({ targets: t, ...o });
-const zp = (z) => cam.zoom = M.max(cam.zoom, z);
+const zp = (z) => cam.zoom = Mmax(cam.zoom, z);
 const live = (g) => g.getChildren().filter((o) => o.active);
 const foes = () => live(enemies).filter((e) => e.hp > 0);
 
@@ -540,14 +550,14 @@ function emitter(c, h) {
   const k = c + (h ? 'h' : '');
   let e = em[k];
   if (!e) {
-    e = em[k] = S.add.particles(0, 0, 'px', c == 'cf' ? {
+    e = em[k] = SA.particles(0, 0, 'px', c == 'cf' ? {
       tint: [RED, GOLD, LIME, CYAN, PINK, PURPLE], speed: { min: 200, max: 520 }, angle: { min: 200, max: 340 },
       lifespan: 1600, gravityY: 500, scaleX: { start: 4, end: 1 }, scaleY: 2, rotate: { start: 0, end: 540 }, emitting: false,
     } : {
       tint: c, speed: { min: 60, max: 340 }, lifespan: { min: 250, max: 600 }, scale: { start: 2.6, end: 0 },
       gravityY: 500, emitting: false, blendMode: 'ADD',
-    }).setDepth(h ? 32 : 6);
-    if (h) e.setScrollFactor(0);
+    }).Dp(h ? 32 : 6);
+    if (h) e.Sf(0);
   }
   return e;
 }
@@ -555,19 +565,19 @@ const burst = (x, y, c, n, h) => emitter(c, h).explode(n, x, y);
 
 // imagen efimera que crece y se desvanece
 function fxi(k, x, y, c, s0, s1, d, h) {
-  const o = S.add.image(x, y, k).setTint(c).setBlendMode(1).setDepth(h ? 30.5 : 6).setScale(s0);
-  if (h) o.setScrollFactor(0);
+  const o = SA.image(x, y, k).Ti(c).Bm(1).Dp(h ? 30.5 : 6).Sc(s0);
+  if (h) o.Sf(0);
   tw(o, { scale: s1, alpha: 0, duration: d, ease: 'Cubic.easeOut', onComplete: () => o.destroy() });
   return o;
 }
 const ring = (x, y, c, s, h) => fxi('ring', x, y, c, .2, s || 1.5, 320, h);
 const flash = (x, y, c, s) => fxi('glow', x, y, c, s, s * 1.6, 90);
-const rays = (x, y, c, h) => spinL.push(fxi('ray', x, y, c, .1, 2.6, 1600, h).setAlpha(.6));
+const rays = (x, y, c, h) => spinL.push(fxi('ray', x, y, c, .1, 2.6, 1600, h).Al(.6));
 
 // texto que aparece de golpe con rebote
 function pop(x, y, s, z, c, h, life, rainbow) {
-  const t = txt(x, y, s, z, c, .5, .5).setDepth(h ? 33 : 7).setScale(0);
-  if (h) t.setScrollFactor(0);
+  const t = txt(x, y, s, z, c, .5, .5).Dp(h ? 33 : 7).Sc(0);
+  if (h) t.Sf(0);
   if (rainbow) rb.push(t);
   tw(t, { scale: 1, duration: 280, ease: 'Back.easeOut' });
   tw(t, { alpha: 0, y: y - 24, delay: life || 650, duration: 300, onComplete: () => t.destroy() });
@@ -577,20 +587,20 @@ function pop(x, y, s, z, c, h, life, rainbow) {
 function num(x, y, v, cr, c) {
   const t = nums[ni++ % 24];
   S.tweens.killTweensOf(t);
-  t.setText(v + (cr ? '!' : '')).setPosition(x + rnd(-8, 8), y).setFontSize(cr ? 18 : 12).setTint(c || (cr ? GOLD : 0xffffff)).setAlpha(1).setScale(cr ? 1.7 : 1.3).setVisible(1);
+  t.Te(v + (cr ? '!' : '')).Po(x + rnd(-8, 8), y).setFontSize(cr ? 18 : 12).Ti(c || (cr ? GOLD : 0xffffff)).Al(1).Sc(cr ? 1.7 : 1.3).Vi(1);
   tw(t, { y: y - 36, scale: 1, alpha: { value: 0, ease: 'Quad.easeIn' }, duration: 650, ease: 'Cubic.easeOut' });
 }
 
 function stop(s) {
   if (mode == 'PLAY' && !demo) {
-    S.physics.pause();
+    SP.pause();
     stopT = s;
   }
 }
 
 const nearP = (x, y) => {
   let b = 0, bd = 1e9;
-  P.forEach((p) => {
+  P.fe((p) => {
     if (p && !p.dn) {
       const d = dist(x, y, p.x, p.y);
       if (d < bd) {
@@ -603,7 +613,7 @@ const nearP = (x, y) => {
 };
 const near = (x, y, r) => {
   let b = 0;
-  foes().forEach((e) => {
+  foes().fe((e) => {
     const d = dist(x, y, e.x, e.y);
     if (d < r && !(e.sp0 > 0)) {
       r = d;
@@ -616,6 +626,8 @@ const near = (x, y, r) => {
 // ---------------------------------------------------------------- escena
 function create() {
   S = this;
+  SA = S.add;
+  SP = S.physics;
   // fondo opaco en la camara: con bloom la escena se dibuja en una textura que parte transparente,
   // y la mezcla aditiva (brillos, anillos, balas) oscurecia todo su cuadrado sobre las zonas semitransparentes
   cam = S.cameras.main.setBackgroundColor(0x0b0f14);
@@ -656,47 +668,47 @@ function create() {
   for (const c in held) held[c] = real[c] || 0;
 
   bl = 0;
-  dk = S.add.image(0, 0, 'dk').setScale(28).setDepth(15).setAlpha(.92);
+  dk = SA.image(0, 0, 'dk').Sc(28).Dp(15).Al(.92);
   if (cam.postFX && !noFx) {
     bl = cam.postFX.addBloom(0xffffff, 1, 1, 2.4, .3);
     cam.postFX.addVignette(.5, .5, .9, .3);
     cx = cam.postFX.addColorMatrix();
   }
-  sky = S.add.image(400, 640, 'glow').setScale(16, 9).sf(-11).setAlpha(.35);
+  sky = SA.image(400, 640, 'glow').Sc(16, 9).sf(-11).Al(.35);
   // senal en dos capas que se reparten la textura sin solaparse (si se solapan, el halo doble se ve como un cuadrado):
   // filas 0-33 (ovalo y halo) delante de los edificios con alfa pareja; el haz (filas 34+) detras, desvaneciendose hacia abajo.
   // ojo: con recorte, el alfa por esquina se reparte en el recorte, no en la textura entera
-  sun = [[-8.5, 0, 34, .9], [-10.5, 34, 86, 0]].map(([d, y, h, a]) => S.add.image(720, 230, 'sun').sf(d).setAlpha(.9, .9, a, a).setCrop(0, y, 48, h));
-  bgs = [0, 1].map((i) => S.add.tileSprite(0, 0, W, H, 'b0').setOrigin(0).sf(-10 + i).setAlpha(i ? .85 : .5).setTileScale(i + 1));
-  amb = S.add.particles(0, 0, 'px', {
+  sun = [[-8.5, 0, 34, .9], [-10.5, 34, 86, 0]].map(([d, y, h, a]) => SA.image(720, 230, 'sun').sf(d).Al(.9, .9, a, a).setCrop(0, y, 48, h));
+  bgs = [0, 1].map((i) => SA.tileSprite(0, 0, W, H, 'b0').Or(0).sf(-10 + i).Al(i ? .85 : .5).setTileScale(i + 1));
+  amb = SA.particles(0, 0, 'px', {
     x: { min: 0, max: W }, y: { min: 0, max: H }, lifespan: 5e3, speedY: { min: -40, max: -10 }, scale: { min: .5, max: 1.5 },
     alpha: { start: .6, end: 0 }, frequency: 90, blendMode: 'ADD',
   }).sf(-8);
-  players = S.physics.add.group();
-  enemies = S.physics.add.group();
-  bullets = S.physics.add.group({ allowGravity: false });
+  players = SP.add.group();
+  enemies = SP.add.group();
+  bullets = SP.add.group({ allowGravity: false });
   // ojo: Phaser descarta el contacto solo si el filtro devuelve exactamente false, por eso b.own > 0 y no b.own
-  S.physics.add.overlap(bullets, enemies, hitE, (b, e) => b.own > 0 && e.hp > 0 && !(e.sp0 > 0) && b.hit.indexOf(e) < 0);
-  S.physics.add.overlap(bullets, players, (b, p) => {
+  SP.add.overlap(bullets, enemies, hitE, (b, e) => b.own > 0 && e.hp > 0 && !(e.sp0 > 0) && b.hit.indexOf(e) < 0);
+  SP.add.overlap(bullets, players, (b, p) => {
     hurtP(p, b.dmg, b.x);
     kb(b);
   }, (b, p) => !b.own && !p.dn);
-  S.physics.add.overlap(enemies, players, (e, p) => hurtP(p, e.k == 3 ? 8 * e.dm : e.dmg, e.x), (e, p) => e.hp > 0 && !(e.sp0 > 0) && !p.dn);
-  G = S.add.graphics().setDepth(6);
+  SP.add.overlap(enemies, players, (e, p) => hurtP(p, e.k == 3 ? 8 * e.dm : e.dmg, e.x), (e, p) => e.hp > 0 && !(e.sp0 > 0) && !p.dn);
+  G = SA.graphics().Dp(6);
   camPt = new Phaser.Math.Vector2(200, 500);
   cam.startFollow(camPt, true, .1, .1);
   nums = [];
-  for (ni = 0; ni < 24; ni++) nums.push(txt(0, 0, '', 12, 0, .5, .5).setDepth(8).setVisible(0));
-  S.add.tileSprite(0, 0, W, H, 'scan').setOrigin(0).sf(99).setAlpha(.18);
+  for (ni = 0; ni < 24; ni++) nums.push(txt(0, 0, '', 12, 0, .5, .5).Dp(8).Vi(0));
+  SA.tileSprite(0, 0, W, H, 'scan').Or(0).sf(99).Al(.18);
   mkHud();
   buildStage();
   if (demo) {
     join(0);
-    [10, 10, 16, 0, 0, 0, 14, 12, 3].forEach((k) => give(k, 1));
+    [10, 10, 16, 0, 0, 0, 14, 12, 3].fe((k) => give(k, 1));
     startBoss();
     mus(0);
     mkTitle();
-    ha.forEach((o) => o.setVisible(0));
+    ha.fe((o) => o.Vi(0));
   } else {
     join(startWith);
   }
@@ -705,10 +717,10 @@ function create() {
 
 function update(time, delta) {
   tn = time;
-  const dt = M.min(delta, 50) / 1000;
+  const dt = Mmin(delta, 50) / 1000;
   G.clear();
   music();
-  if (bl && (sf = M.max(0, sf + (delta > 28 ? 1 : -1))) > 90) {
+  if (bl && (sf = Mmax(0, sf + (delta > 28 ? 1 : -1))) > 90) {
     cam.postFX.clear();
     bl = cx = 0;
     noFx = 1;
@@ -718,10 +730,10 @@ function update(time, delta) {
   else if (mode == 'PAUSE') upPause(dt);
   else upOver(dt);
   fx = fx.filter((f) => (f[6] -= dt) > 0);
-  fx.forEach((f) => G.lineStyle(f[5] * M.min(1, f[6] * 8), f[4], 1).lineBetween(f[0], f[1], f[2], f[3]));
+  fx.fe((f) => G.lineStyle(f[5] * Mmin(1, f[6] * 8), f[4], 1).lineBetween(f[0], f[1], f[2], f[3]));
   spinL = spinL.filter((o) => o.active && (o.rotation += dt * 1.2));
-  rb = rb.filter((o) => o.active && o.setTint(hsv(time / 600)));
-  cam.zoom += (zt - cam.zoom) * M.min(1, dt * 7);
+  rb = rb.filter((o) => o.active && o.Ti(hsv(time / 600)));
+  cam.zoom += (zt - cam.zoom) * Mmin(1, dt * 7);
   for (const c in held) prev[c] = held[c];
   kq = [];
 }
@@ -740,7 +752,7 @@ function play(dt) {
   }
   if (stopT > 0) {
     if ((stopT -= dt) <= 0) {
-      S.physics.resume();
+      SP.resume();
       zt = 1;
       if (cx) cx.reset();
     }
@@ -749,7 +761,7 @@ function play(dt) {
   if (slow > 0) {
     slow -= dt;
     dt *= .3;
-    S.physics.world.timeScale = slow > 0 ? 3.3 : 1;
+    SP.world.timeScale = slow > 0 ? 3.3 : 1;
   }
   const nl = 1 + (debt / 18 | 0);
   if (nl > lvl) {
@@ -760,7 +772,7 @@ function play(dt) {
       tone(220, .3, 'sawtooth', .08, 440);
     }
   }
-  P.forEach((p) => p && upP(p, dt));
+  P.fe((p) => p && upP(p, dt));
   const al = P.filter((p) => p && !p.dn);
   // co-op: si uno se queda atras, se trae al rezagado al ultimo suelo seguro del otro
   if (al.length > 1 && ab(al[0].x - al[1].x) > 700) {
@@ -772,43 +784,43 @@ function play(dt) {
   }
   pp = al.length > 1 && dist(al[0].x, al[0].y, al[1].x, al[1].y) < 170;
   if (pp) {
-    G.lineStyle(2, GREEN, .5 + .3 * M.sin(tn / 90)).lineBetween(al[0].x, al[0].y, al[1].x, al[1].y);
+    G.lineStyle(2, GREEN, .5 + .3 * Msin(tn / 90)).lineBetween(al[0].x, al[0].y, al[1].x, al[1].y);
     if (tn > ppT) pop(cl(al[0].x / 2 + al[1].x / 2, cam.scrollX + 140, cam.scrollX + 660), al[0].y - 50, 'PAIR PROGRAMMING', 12, GREEN, 0, 900);
     ppT = tn + 9e3;
   }
   if (al.length) {
     let x = 0, y = 0;
-    al.forEach((p) => {
+    al.fe((p) => {
       x += p.x / al.length;
       y += p.y / al.length;
     });
     camPt.set(x + (al.length == 1 ? al[0].face * 50 : 0), y - 30);
-    if (two) al.forEach((p) => p.x = cl(p.x, cam.scrollX + 12, cam.scrollX + W - 12));
+    if (two) al.fe((p) => p.x = cl(p.x, cam.scrollX + 12, cam.scrollX + W - 12));
   }
-  dk.setVisible(inc == 2 && !stg).setPosition(camPt.x, camPt.y);
-  const bt = AC && AC.currentTime > bk ? M.max(0, 1 - (AC.currentTime - bk) * 5) : 0;
-  sky.setTint(flow ? hsv(tn / 3e3) : lvl > 14 && (tn / 500 | 0) % 2 ? RED : BIOC[bio]).setAlpha(.35 + bt * .25);
-  sun.forEach((s) => s.setScale(3 + bt * .2)); // la senal late con el bombo (las dos capas juntas para que el ovalo calce)
+  dk.Vi(inc == 2 && !stg).Po(camPt.x, camPt.y);
+  const bt = AC && AC.currentTime > bk ? Mmax(0, 1 - (AC.currentTime - bk) * 5) : 0;
+  sky.Ti(flow ? hsv(tn / 3e3) : lvl > 14 && (tn / 500 | 0) % 2 ? RED : BIOC[bio]).Al(.35 + bt * .25);
+  sun.fe((s) => s.Sc(3 + bt * .2)); // la senal late con el bombo (las dos capas juntas para que el ovalo calce)
   if (bl) bl.strength = .3 + flow * .12;
-  bgs.forEach((b, i) => {
-    b.setTint(sky.tintTopLeft).setAlpha(i ? .6 + bt * .2 : .4);
+  bgs.fe((b, i) => {
+    b.Ti(sky.tintTopLeft).Al(i ? .6 + bt * .2 : .4);
     b.tilePositionX = cam.scrollX * (i ? .4 : .15) / (i + 1);
     b.tilePositionY = (cam.scrollY - 104) * (i ? .2 : .1);
   });
-  live(enemies).forEach((e) => upE(e, dt));
-  live(bullets).forEach((b) => upB(b, dt));
+  live(enemies).fe((e) => upE(e, dt));
+  live(bullets).fe((b) => upB(b, dt));
   coinsUp(dt);
   const q = fq;
   fq = [];
-  q.forEach((f) => boom(f[0], f[1], 60 + 15 * inv[9], 0, atk * .6, f[2]));
+  q.fe((f) => boom(f[0], f[1], 60 + 15 * inv[9], 0, atk * .6, f[2]));
   upRolls(dt);
-  terms.forEach(upTerm);
+  terms.fe(upTerm);
   if (stg < 2) director(dt);
   if (comboT > 0 && (comboT -= dt) <= 0) {
     if (combo >= 10 && !demo) {
       const v = combo * combo / 50 | 0;
       pop(400, 200, 'COMBO X' + combo + '  +$' + v, 24, GOLD, 1, 1100, 1);
-      for (let k = 0; k < M.min(10, v); k++) drop(cam.scrollX + rnd(80, 720), cam.scrollY - 10, k ? 1 : v - M.min(10, v) + 1);
+      for (let k = 0; k < Mmin(10, v); k++) drop(cam.scrollX + rnd(80, 720), cam.scrollY - 10, k ? 1 : v - Mmin(10, v) + 1);
       ka(4, .06);
     }
     combo = flow = 0;
@@ -822,19 +834,19 @@ function gt(c) {
   return top[c];
 }
 function buildStage() {
-  P.forEach((p) => p && (p.dn ? revive(p, .5) : p.hp = M.min(mhp, p.hp + mhp * .3)));
+  P.fe((p) => p && (p.dn ? revive(p, .5) : p.hp = Mmin(mhp, p.hp + mhp * .3)));
   if (layer) {
     layer.destroy();
     map.destroy();
   }
-  cols.forEach((c) => c.destroy());
-  lv.forEach((o) => o.destroy());
+  cols.fe((c) => c.destroy());
+  lv.fe((o) => o.destroy());
   lv = [];
   terms = [];
   rolls = [];
-  live(enemies).forEach((e) => e.disableBody(true, true));
-  live(bullets).forEach((b) => b.disableBody(true, true));
-  cn.forEach((c) => {
+  live(enemies).fe((e) => e.Db(true, true));
+  live(bullets).fe((b) => b.Db(true, true));
+  cn.fe((c) => {
     coins += c.v;
     c.destroy();
   });
@@ -844,8 +856,8 @@ function buildStage() {
   stg = boss = dirCr = 0;
   dirT = 3;
   inc = stage > 1 && !demo ? (DEV && window.__inc) || ri(1, 3) : 0;
-  S.physics.world.gravity.y = inc == 3 ? 620 : 1100;
-  S.physics.world.setBounds(0, 0, MW * T, WH, true, true, false, false);
+  SP.world.gravity.y = inc == 3 ? 620 : 1100;
+  SP.world.setBounds(0, 0, MW * T, WH, true, true, false, false);
   cam.setBounds(0, 0, MW * T, WH);
   bio = (stage - 1) % 3;
   lp = (stage - 1) / 3 | 0;
@@ -897,9 +909,9 @@ function buildStage() {
   });
   const oneWay = (s, t) => t.index % 3 != 2 || (!s.dropping && s.body.prev.y + s.body.height <= t.getTop() + 1);
   cols = [
-    S.physics.add.collider(players, layer, null, oneWay),
-    S.physics.add.collider(enemies, layer, null, (e, t) => !e.fly && oneWay(e, t)),
-    S.physics.add.collider(bullets, layer, (b) => kb(b), (b, t) => t.index % 3 != 2 && !b.gh),
+    SP.add.collider(players, layer, null, oneWay),
+    SP.add.collider(enemies, layer, null, (e, t) => !e.fly && oneWay(e, t)),
+    SP.add.collider(bullets, layer, (b) => kb(b), (b, t) => t.index % 3 != 2 && !b.gh),
   ];
   // terminales
   const take = (c0, c1, pl) => {
@@ -926,13 +938,13 @@ function buildStage() {
     lv.push(...CT.map((t, k) => txt(240, 452 + k * 20, t, 12, STEEL, .5)));
   }
   const un = unl();
-  for (k = 0; k < M.min(16, 4 + 2 * stage); k++) {
+  for (k = 0; k < Mmin(16, 4 + 2 * stage); k++) {
     const s = pick(spots.filter((s) => s[0] > 18));
     const t = pick(un), f = t == 1 || t == 2;
     if (s) spawnE(t, s[0] * T + 16, s[1] * T - (f ? 60 : 14)).sp0 = 0;
   }
   // jugadores al inicio
-  P.forEach((p, i) => {
+  P.fe((p, i) => {
     if (p) {
       p.body.reset(90 + i * 34, 17 * T - 14);
       p.sx = p.x;
@@ -943,7 +955,7 @@ function buildStage() {
   cam.scrollX = 0;
   cam.scrollY = WH - H;
   amb.setParticleTint(BIOC[bio]);
-  bgs.forEach((b) => b.setTexture('b' + bio));
+  bgs.fe((b) => b.Tx('b' + bio));
   cam.fadeIn(350);
   if (!demo) {
     pop(400, 230, fin ? 'DEPLOY FINAL' : 'SERVER ' + stage + ': ' + BIO[bio], 24, BIOC[bio], 1, 1700);
@@ -957,11 +969,11 @@ function buildStage() {
 }
 
 function term(x, y, k) {
-  const t = S.add.image(x, y, k == 2 ? 's15' : k ? 'ts' : 's14').setOrigin(.5, 1).setDepth(1);
-  t.gl = S.add.image(x, y - 14, 'glow').setTint(k ? RED : GREEN).setBlendMode(1).setScale(k == 2 ? 2 : 1.3);
+  const t = SA.image(x, y, k == 2 ? 's15' : k ? 'ts' : 's14').Or(.5, 1).Dp(1);
+  t.gl = SA.image(x, y - 14, 'glow').Ti(k ? RED : GREEN).Bm(1).Sc(k == 2 ? 2 : 1.3);
   t.k = k;
   t.n = k ? 1 : 2;
-  t.lb = txt(x, y - (k == 2 ? 40 : 34), '', 12, LIME, .5, 1).setDepth(8);
+  t.lb = txt(x, y - (k == 2 ? 40 : 34), '', 12, LIME, .5, 1).Dp(8);
   lv.push(t, t.gl, t.lb);
   terms.push(t);
   return t;
@@ -978,8 +990,8 @@ function upTerm(t) {
     s = t.k ? '[B5] SUDO: GRATIS, +DEUDA' : '[B5] NPM INSTALL $' + pr;
     if (!t.k && coins < pr) c = RED;
   }
-  t.lb.setText(demo ? '' : s).setTint(c);
-  t.gl.setAlpha(t.n > 0 && !(t.k == 2 && stg) ? .35 + .2 * M.sin(tn / 200) : 0);
+  t.lb.Te(demo ? '' : s).Ti(c);
+  t.gl.Al(t.n > 0 && !(t.k == 2 && stg) ? .35 + .2 * Msin(tn / 200) : 0);
 }
 function use(p) {
   const t = nearT(p);
@@ -1008,16 +1020,16 @@ function use(p) {
     pop(t.x, t.y - 70, '-$' + pr, 12, GOLD);
     roll(t, rollItem(0));
   }
-  if (t.n <= 0) t.setTint(0x55606e);
+  if (t.n <= 0) t.Ti(0x55606e);
 }
 
 // ---------------------------------------------------------------- jugador
 function join(i) {
   const o = P[1 - i], al = o && !o.dn, x = al ? o.x : 90, y = al ? o.y - 30 : 17 * T - 14;
-  const p = players.create(x, y, i ? 'q0' : 's0').setDepth(4);
+  const p = players.create(x, y, i ? 'q0' : 's0').Dp(4);
   p.body.setSize(14, 26).setOffset(5, 2).setMaxVelocity(900, 640).setCollideWorldBounds(true);
   Object.assign(p, { i, face: 1, cdD: 0, cdS: 0, dT: 0, iv: 1.5, coy: 0, jb: 0, air: 0, ft: 0, drop: 0, sh: inv[11] ? 1 : 0, shT: 0, dn: 0, rv: 0, sx: x, sy: y, st: 0, shots: 0, dr: [], cr: 2, dtm: 0, wg: 1, vy0: 0, ch: 0 });
-  p.shi = S.add.image(x, y, 'ring').setScale(.65).setTint(CYAN).setAlpha(.6).setDepth(5).setBlendMode(1).setVisible(0);
+  p.shi = SA.image(x, y, 'ring').Sc(.65).Ti(CYAN).Al(.6).Dp(5).Bm(1).Vi(0);
   P[i] = p;
   two = P[0] && P[1] ? 1 : 0;
   recalc();
@@ -1033,13 +1045,13 @@ function recalc() {
   const n = inv;
   atk = 12 * (1 + .2 * n[3]) * (1 + n[17]);
   cad = 1 + .15 * n[0];
-  spd = 190 * M.min(1.8, 1 + .1 * n[1]);
-  crit = M.min(1, .05 + .1 * n[2]);
+  spd = 190 * Mmin(1.8, 1 + .1 * n[1]);
+  crit = Mmin(1, .05 + .1 * n[2]);
   mhp = 100 + 25 * n[4];
-  dodge = M.min(.4, n[7] / (n[7] + 9));
+  dodge = Mmin(.4, n[7] / (n[7] + 9));
   cdm = 1 / (1 + .18 * n[15]);
-  P.forEach((p) => {
-    if (p) while (p.dr.length < n[16]) p.dr.push(S.add.image(p.x, p.y, 's17').setDepth(5));
+  P.fe((p) => {
+    if (p) while (p.dr.length < n[16]) p.dr.push(SA.image(p.x, p.y, 's17').Dp(5));
   });
 }
 
@@ -1049,7 +1061,7 @@ function upP(p, dt) {
     const o = P[1 - i];
     if (o && !o.dn && ab(o.x - p.tb.x) < 40 && ab(o.y - p.tb.y) < 50) {
       if ((p.rv += dt) > 2.5) revive(p, .4);
-    } else p.rv = M.max(0, p.rv - dt);
+    } else p.rv = Mmax(0, p.rv - dt);
     if (p.rv > 0) G.fillStyle(GREEN).fillRect(p.tb.x - 20, p.tb.y - 22, 40 * p.rv / 2.5, 4);
     return;
   }
@@ -1076,7 +1088,7 @@ function upP(p, dt) {
     if ((p.dT -= dt) <= 0) {
       b.setAllowGravity(true);
       b.velocity.scale(.3);
-    } else fxi(p.texture.key, p.x, p.y, pc, 1, 1, 220).setFlipX(p.flipX).setBlendMode(0).setAlpha(.6);
+    } else fxi(p.texture.key, p.x, p.y, pc, 1, 1, 220).Fx(p.flipX).Bm(0).Al(.6);
   } else {
     b.setVelocityX(hz ? p.face * spd : 0);
     if (p.jb > 0) {
@@ -1098,7 +1110,7 @@ function upP(p, dt) {
       const l = M.hypot(ax, ay);
       b.setAllowGravity(false).setVelocity(ax / l * 560, ay / l * 560);
       p.dT = .16;
-      p.iv = M.max(p.iv, .26);
+      p.iv = Mmax(p.iv, .26);
       p.cdD = 2.2 * cdm;
       sfx('dash');
       burst(p.x, p.y, pc, 10);
@@ -1111,11 +1123,11 @@ function upP(p, dt) {
     const ay = U ? -1 : D && !g ? 1 : 0;
     fire(p, M.atan2(ay, ay && !hz ? 0 : p.face));
   }
-  if (flow && R() < dt * 25) fxi(p.texture.key, p.x, p.y, hsv(now / 400), 1, 1.4, 280).setFlipX(p.flipX);
+  if (flow && R() < dt * 25) fxi(p.texture.key, p.x, p.y, hsv(now / 400), 1, 1.4, 280).Fx(p.flipX);
   const tk = (i ? 'q' : 's') + (!g ? 3 : hz ? 1 + (now / 90 | 0) % 2 : 0);
-  if (p.texture.key != tk) p.setTexture(tk);
-  p.setFlipX(p.face < 0);
-  p.hp = M.min(mhp, p.hp + (.8 * inv[8] + (p.iv < -3 ? 2 : 0)) * dt);
+  if (p.texture.key != tk) p.Tx(tk);
+  p.Fx(p.face < 0);
+  p.hp = Mmin(mhp, p.hp + (.8 * inv[8] + (p.iv < -3 ? 2 : 0)) * dt);
   if (inv[11] && !p.sh && (p.shT -= dt) <= 0) {
     p.sh = 1;
     ring(p.x, p.y, CYAN, 1.2);
@@ -1130,16 +1142,16 @@ function upP(p, dt) {
     if (p.ch > .5 && p.cdS <= 0) special(p);
     p.ch = 0;
   }
-  p.shi.setVisible(p.sh).setPosition(p.x, p.y).setAlpha(.4 + .2 * M.sin(now / 150));
-  p.dr.forEach((d, j) => {
+  p.shi.Vi(p.sh).Po(p.x, p.y).Al(.4 + .2 * Msin(now / 150));
+  p.dr.fe((d, j) => {
     const a = now / 500 + j * 6.28 / p.dr.length;
-    const f = M.min(1, dt * 12);
-    d.x += (p.x + M.cos(a) * 30 - d.x) * f;
-    d.y += (p.y - 28 + M.sin(a) * 8 - d.y) * f;
+    const f = Mmin(1, dt * 12);
+    d.x += (p.x + Mcos(a) * 30 - d.x) * f;
+    d.y += (p.y - 28 + Msin(a) * 8 - d.y) * f;
   });
   if (p.dr.length && (p.dtm -= dt) <= 0) {
     p.dtm = .5;
-    p.dr.forEach((d) => {
+    p.dr.fe((d) => {
       const e = near(d.x, d.y, 380);
       if (e) {
         shoot(d.x, d.y, ang(d, e), 560, atk * .6, 1, CYAN, 3, 3, .8);
@@ -1160,7 +1172,7 @@ function upP(p, dt) {
     p.iv = 1;
   }
   if (ht(i, '5') || ht(i, '6')) use(p);
-  p.setAlpha(p.iv > 0 && p.dT <= 0 && (now / 70 | 0) % 2 ? .35 : 1);
+  p.Al(p.iv > 0 && p.dT <= 0 && (now / 70 | 0) % 2 ? .35 : 1);
 }
 
 function jump(p, v) {
@@ -1176,7 +1188,7 @@ function fire(p, a) {
     const d = Phaser.Math.Angle.Wrap(ang(p, e) - a);
     if (ab(d) < .52) a += cl(d, -.21, .21);
   }
-  const n = 1 + inv[10], cr = R() < crit, c = cr ? GOLD : p.i ? PINK : LIME, x = p.x + M.cos(a) * 14, y = p.y + 1 + M.sin(a) * 12;
+  const n = 1 + inv[10], cr = R() < crit, c = cr ? GOLD : p.i ? PINK : LIME, x = p.x + Mcos(a) * 14, y = p.y + 1 + Msin(a) * 12;
   for (let k = 0; k < n; k++) {
     const b = shoot(x, y, a + (k % 2 ? 1 : -1) * M.ceil(k / 2) * .12, 640, atk * (k ? .6 : 1) * (cr ? 2 : 1) * (pp ? 1.25 : 1), 1, c, cr ? 7 : 5, cr ? 3 : 2, .7);
     b.nb = 1;
@@ -1184,20 +1196,20 @@ function fire(p, a) {
   }
   flash(x, y, c, .35);
   sfx('sh');
-  if (inv[19] && ++p.shots % M.max(4, 9 - inv[19]) == 0) laser(p, a);
+  if (inv[19] && ++p.shots % Mmax(4, 9 - inv[19]) == 0) laser(p, a);
 }
 
 function shoot(x, y, a, sp, dmg, own, c, sx, sy, life) {
   const b = bullets.get(x, y, 'px');
   b.enableBody(true, x, y, true, true);
-  b.setScale(sx, sy).setRotation(a).setTint(c).setDepth(5).setAlpha(1).setBlendMode(1);
-  b.body.setAllowGravity(false).setVelocity(M.cos(a) * sp, M.sin(a) * sp);
+  b.Sc(sx, sy).setRotation(a).Ti(c).Dp(5).Al(1).Bm(1);
+  b.body.setAllowGravity(false).setVelocity(Mcos(a) * sp, Msin(a) * sp);
   Object.assign(b, { own, dmg, life, pr: own ? inv[6] : 0, hit: [], gh: 0, kbk: 0, cr: 0, rk: 0, nb: 0, c });
   return b;
 }
 
 function kb(b, q) {
-  b.disableBody(true, true);
+  b.Db(true, true);
   if (!q) burst(b.x, b.y, b.c, 3);
 }
 
@@ -1229,9 +1241,9 @@ function special(p) {
 }
 
 function laser(p, a) {
-  const c = M.cos(a), s = M.sin(a), x2 = p.x + c * 900, y2 = p.y + s * 900;
+  const c = Mcos(a), s = Msin(a), x2 = p.x + c * 900, y2 = p.y + s * 900;
   fx.push([p.x, p.y, x2, y2, RED, 22, .2], [p.x, p.y, x2, y2, 0xffffff, 8, .2]);
-  foes().forEach((e) => {
+  foes().fe((e) => {
     const dx = e.x - p.x, dy = e.y - p.y;
     if (dx * c + dy * s > 0 && ab(dx * s - dy * c) < 11 + e.body.height / 2) dmgE(e, atk * 3 * inv[19], 1, p.x, 200);
   });
@@ -1249,7 +1261,7 @@ function hurtP(p, d, sx, pit) {
     }
     if (p.sh) {
       p.sh = 0;
-      p.shT = M.max(2.5, 8.5 - 1.5 * inv[11]);
+      p.shT = Mmax(2.5, 8.5 - 1.5 * inv[11]);
       p.iv = .5;
       ring(p.x, p.y, CYAN, 2.4);
       burst(p.x, p.y, CYAN, 14);
@@ -1257,7 +1269,7 @@ function hurtP(p, d, sx, pit) {
       return;
     }
   }
-  d = M.max(1, M.round(d));
+  d = Mmax(1, M.round(d));
   p.hp -= d;
   if (flow) {
     flow = 0;
@@ -1273,10 +1285,10 @@ function hurtP(p, d, sx, pit) {
   if (p.hp <= 0) {
     if (inv[18]) {
       inv[18]--;
-      if (ii[18]) ii[18][1].setText(inv[18] > 1 ? 'X' + inv[18] : inv[18] ? '' : '0');
+      if (ii[18]) ii[18][1].Te(inv[18] > 1 ? 'X' + inv[18] : inv[18] ? '' : '0');
       p.hp = mhp / 2;
       p.iv = 2;
-      live(bullets).forEach((b) => !b.own && kb(b));
+      live(bullets).fe((b) => !b.own && kb(b));
       boom(p.x, p.y, 200, 0, 200, 9);
       pop(400, 200, 'ROLLBACK!', 36, CYAN, 1, 900, 1);
       cam.flash(300, 62, 197, 255);
@@ -1289,11 +1301,11 @@ function down(p) {
   slow = .6;
   p.hp = 0;
   p.body.enable = false;
-  p.setVisible(0);
-  p.shi.setVisible(0);
-  p.dr.forEach((d) => d.setVisible(0));
-  p.tb = S.add.image(p.sx, p.sy + 4, 's18').setDepth(4);
-  p.tl = txt(p.sx, p.sy - 34, 'OFFLINE', 12, RED, .5, .5).setDepth(7);
+  p.Vi(0);
+  p.shi.Vi(0);
+  p.dr.fe((d) => d.Vi(0));
+  p.tb = SA.image(p.sx, p.sy + 4, 's18').Dp(4);
+  p.tl = txt(p.sx, p.sy - 34, 'OFFLINE', 12, RED, .5, .5).Dp(7);
   ring(p.x, p.y, RED, 3);
   burst(p.x, p.y, p.i ? PINK : LIME, 30);
   sfx('boom');
@@ -1310,7 +1322,7 @@ function tbc() {
   mus(-1);
   if (cx) cx.sepia();
   sfx('boss');
-  [rect(-400, 530, 380, 36, 0x3a2810), txt(-210, 548, '<< TO BE CONTINUED', 18, 0xf0e0b0, .5, .5)].forEach((o) => {
+  [rect(-400, 530, 380, 36, 0x3a2810), txt(-210, 548, '<< TO BE CONTINUED', 18, 0xf0e0b0, .5, .5)].fe((o) => {
     o.sf(33);
     tw(o, { x: o.x + 420, duration: 350, ease: 'Back.easeOut' });
   });
@@ -1323,8 +1335,8 @@ function revive(p, f) {
   p.rv = 0;
   p.body.enable = true;
   p.body.reset(p.tb.x, p.tb.y - 12);
-  p.setVisible(1);
-  p.dr.forEach((d) => d.setVisible(1));
+  p.Vi(1);
+  p.dr.fe((d) => d.Vi(1));
   p.tb.destroy();
   p.tl.destroy();
   ring(p.x, p.y, GREEN, 2.5);
@@ -1337,30 +1349,30 @@ const unl = () => [0, 1, 2, 3, 4, 6].filter((k) => EN[k][7] <= lvl);
 function spawnE(k, x, y, el) {
   const t = EN[k], e = enemies.get(x, y, 's' + t[0]), f = k == 1 || k == 2 || k > 7;
   el = el || 0;
-  e.setTexture('s' + t[0]).enableBody(true, x, y, true, true);
-  e.setScale((k == 4 ? 2 : 1) * (el == 1 ? 1.25 : 1)).setDepth(3).setAlpha(1).setFlipX(0).clearTint();
+  e.Tx('s' + t[0]).enableBody(true, x, y, true, true);
+  e.Sc((k == 4 ? 2 : 1) * (el == 1 ? 1.25 : 1)).Dp(3).Al(1).Fx(0).clearTint();
   e.body.setAllowGravity(!f).setSize(e.frame.width * .8, e.frame.height * .8).setVelocity(0, 0).setMaxVelocity(600, 700).setCollideWorldBounds(false);
   const hm = (1 + .16 * (lvl - 1)) * (1 + .08 * itc) * (1 + .5 * lp) * (two ? 1.5 : 1) * [1, 3, 1.8, 2][el], dm = (1 + .1 * (lvl - 1)) * (1 + .4 * lp) * (el == 3 ? 2 : 1);
   Object.assign(e, {
-    k, el, hp: t[1] * hm, mhp: t[1] * hm, dm, dmg: t[2] * dm, sp: t[3] * M.min(1.35, 1 + .015 * (lvl - 1)) * (el == 2 ? 1.5 : 1),
+    k, el, hp: t[1] * hm, mhp: t[1] * hm, dm, dmg: t[2] * dm, sp: t[3] * Mmin(1.35, 1 + .015 * (lvl - 1)) * (el == 2 ? 1.5 : 1),
     fly: f, t: rnd(.5, 2), st: 0, w: 0, fl: 0, far: 0, stun: 0, sp0: .45, ph: R() * 9, boss: 0, ent: 0, tn: ELC[el], p2: 0, ci: 0, lf: 0,
   });
-  if (el) e.setTint(e.tn);
+  if (el) e.Ti(e.tn);
   return e;
 }
 
 function refund(e) {
   dirCr += EN[e.k][4] * (e.el ? 3 : 1);
   e.hp = 0;
-  e.disableBody(true, true);
+  e.Db(true, true);
 }
 
 function director(dt) {
   dirCr += dt * (.35 + .17 * lvl) * (1 + .3 * lp) * (two ? 1.5 : 1) * (stg ? .5 : 1) * (inc == 1 ? 2 : 1);
   if ((dirT -= dt) > 0) return;
   dirT = rnd(.8, 2.2);
-  const n = foes().length, cap = M.min(34 + 8 * lp, 2 + 2 * lvl) * (two ? 1.3 : 1), k = pick(unl()), c = EN[k][4];
-  let el = lvl >= 4 && dirCr >= c * 3 && R() < M.min(.5, .12 + .02 * lvl + .1 * lp) ? ri(1, 3) : 0;
+  const n = foes().length, cap = Mmin(34 + 8 * lp, 2 + 2 * lvl) * (two ? 1.3 : 1), k = pick(unl()), c = EN[k][4];
+  let el = lvl >= 4 && dirCr >= c * 3 && R() < Mmin(.5, .12 + .02 * lvl + .1 * lp) ? ri(1, 3) : 0;
   for (let j = 0; j < (k < 2 ? 3 : 1) && n + j < cap && dirCr >= c * (el ? 3 : 1); j++) {
     const f = k == 1 || k == 2;
     let x, y;
@@ -1390,24 +1402,24 @@ function walk(e, dx, dy, ad, dt) {
 
 function upE(e, dt) {
   const b = e.body, k = e.k;
-  if (e.fl > 0 && (e.fl -= dt) <= 0) e.tn ? e.setTint(e.tn) : e.clearTint();
+  if (e.fl > 0 && (e.fl -= dt) <= 0) e.tn ? e.Ti(e.tn) : e.clearTint();
   if (e.sp0 > 0) {
-    e.setAlpha(R() < .5 ? .25 : 1).setTintFill(pick([CYAN, PINK, 0xffffff]));
+    e.Al(R() < .5 ? .25 : 1).Tf(pick([CYAN, PINK, 0xffffff]));
     b.setVelocity(0, 0);
     if ((e.sp0 -= dt) <= 0) {
-      e.setAlpha(1);
-      e.tn ? e.setTint(e.tn) : e.clearTint();
+      e.Al(1);
+      e.tn ? e.Ti(e.tn) : e.clearTint();
       ring(e.x, e.y, EN[k][8], 1.2);
     }
     return;
   }
   if (e.boss) return upBoss(e, dt);
-  if (e.el && R() < dt * 1.5) fxi('s42', e.x + rnd(-24, 24), e.y - 24, e.tn, 1, 2, 700).setBlendMode(0);
+  if (e.el && R() < dt * 1.5) fxi('s42', e.x + rnd(-24, 24), e.y - 24, e.tn, 1, 2, 700).Bm(0);
   const p = nearP(e.x, e.y);
   if (!p) return b.setVelocityX(0);
   const dx = p.x - e.x, dy = p.y - e.y, ad = ab(dx), sx = sg(dx) || 1;
-  if (k < 2) e.setTexture('s' + (EN[k][0] + (tn / (k ? 80 : 150) | 0) % 2));
-  e.setFlipX(dx < 0);
+  if (k < 2) e.Tx('s' + (EN[k][0] + (tn / (k ? 80 : 150) | 0) % 2));
+  e.Fx(dx < 0);
   if (e.stun > 0) {
     e.stun -= dt;
     return;
@@ -1415,14 +1427,14 @@ function upE(e, dt) {
   e.t -= dt;
   if (k == 1 || k == 2) {
     const tx = k == 2 ? p.x - sx * 220 : p.x, ty = k == 2 ? p.y - 120 : p.y, a = M.atan2(ty - e.y, tx - e.x), s = dist(e.x, e.y, tx, ty) < 20 ? 0 : e.sp;
-    const f = M.min(1, dt * 3);
-    b.velocity.x += (M.cos(a) * s - b.velocity.x) * f;
-    b.velocity.y += (M.sin(a) * s + M.sin(tn / 300 + e.ph) * 60 - b.velocity.y) * f;
+    const f = Mmin(1, dt * 3);
+    b.velocity.x += (Mcos(a) * s - b.velocity.x) * f;
+    b.velocity.y += (Msin(a) * s + Msin(tn / 300 + e.ph) * 60 - b.velocity.y) * f;
     if (k == 2) {
       if (e.t <= 0 && ad < 320 && ab(dy) < 320) {
         e.t = e.el == 2 ? 1.44 : 2.4;
         e.w = e.fl = .35;
-        e.setTintFill(0xffffff);
+        e.Tf(0xffffff);
       }
       if (e.w > 0 && (e.w -= dt) <= 0) {
         shoot(e.x, e.y, ang(e, p), 210, 10 * e.dm, 0, RED, 4, 4, 3);
@@ -1432,10 +1444,10 @@ function upE(e, dt) {
   } else if (k == 3) {
     if (e.w > 0) {
       b.setVelocityX(0);
-      e.setTintFill((e.w * 20 | 0) % 2 ? 0xffffff : RED);
+      e.Tf((e.w * 20 | 0) % 2 ? 0xffffff : RED);
       if ((e.w -= dt) <= 0) {
         e.hp = 0;
-        e.disableBody(true, true);
+        e.Db(true, true);
         boom(e.x, e.y, 80, 22 * e.dm, 40, 9);
       }
     } else {
@@ -1469,7 +1481,7 @@ function upE(e, dt) {
       if (e.t <= 0 && ab(dy) < 36 && ad < 320) {
         e.st = 1;
         e.t = e.fl = .5;
-        e.setTintFill(0xffffff);
+        e.Tf(0xffffff);
       }
     }
   } else walk(e, dx, dy, ad, dt);
@@ -1491,17 +1503,17 @@ function hitE(b, e) {
 
 function dmgE(e, d, cr, sx, kv, nb, dep) {
   if (e.hp <= 0 || e.sp0 > 0 || e.ent > 0) return;
-  d = M.max(1, M.round(d));
+  d = Mmax(1, M.round(d));
   e.hp -= d;
   // los jefes reciben golpes mas seguido de lo que dura el destello: solo destellan a veces, para que se vea su dibujo
   if (!e.boss || R() < .15) {
-    e.setTintFill(0xffffff);
+    e.Tf(0xffffff);
     e.fl = .06;
   }
   if (!e.boss) {
     e.x += (sg(e.x - sx) || 1) * 3;
     e.body.velocity.x *= .2;
-    e.stun = M.max(e.stun, .12);
+    e.stun = Mmax(e.stun, .12);
   }
   num(e.x, e.y - 16, d, cr);
   sfx(cr ? 'crit' : 'hit');
@@ -1509,7 +1521,7 @@ function dmgE(e, d, cr, sx, kv, nb, dep) {
     e.body.setVelocity((sg(e.x - sx) || 1) * kv, -140);
     e.stun = .25;
   }
-  if (nb && inv[12] && R() < M.min(.6, .15 * inv[12])) chain(e);
+  if (nb && inv[12] && R() < Mmin(.6, .15 * inv[12])) chain(e);
   if (e.hp <= 0) killE(e, dep || 0);
   else if (cr) burst(e.x, e.y, GOLD, 5);
 }
@@ -1534,14 +1546,14 @@ function killE(e, dep) {
   burst(e.x, e.y, t[8], e.boss ? 60 : 14);
   burst(e.x, e.y, 0xffffff, 5);
   ring(e.x, e.y, t[8], e.boss ? 5 : 1.4);
-  fxi(e.texture.key, e.x, e.y, 0xffffff, e.scaleX, e.scaleX * 1.9, 200).setFlipX(e.flipX);
+  fxi(e.texture.key, e.x, e.y, 0xffffff, e.scaleX, e.scaleX * 1.9, 200).Fx(e.flipX);
   sfx('kill');
-  if (inv[5]) P.forEach((p) => p && !p.dn && (p.hp = M.min(mhp, p.hp + 2 * inv[5])));
+  if (inv[5]) P.fe((p) => p && !p.dn && (p.hp = Mmin(mhp, p.hp + 2 * inv[5])));
   if (inv[9] && dep < 3) fq.push([e.x, e.y, dep + 1]);
   if (e.el == 3) for (let k = 0; k < 6; k++) shoot(e.x, e.y, k * 1.047, 180, 10 * e.dm, 0, PURPLE, 4, 4, 2.5);
   if (e.k == 4) {
     const x = e.x, y = e.y;
-    dc(20, () => [-1, 1].forEach((s) => {
+    dc(20, () => [-1, 1].fe((s) => {
       const m2 = spawnE(5, x + s * 10, y - 8);
       m2.sp0 = 0;
       m2.body.setVelocity(s * 160, -300);
@@ -1559,12 +1571,12 @@ function killE(e, dep) {
     ka(3, .05);
   }
   if (e.boss) bossDie(e);
-  e.disableBody(true, true);
+  e.Db(true, true);
 }
 
 function chain(e0) {
   let a = e0;
-  foes().filter((e) => e != e0 && dist(e.x, e.y, e0.x, e0.y) < 160).slice(0, 3).forEach((e) => {
+  foes().filter((e) => e != e0 && dist(e.x, e.y, e0.x, e0.y) < 160).slice(0, 3).fe((e) => {
     let x = a.x, y = a.y;
     for (let k = 1; k < 5; k++) {
       const nx = a.x + (e.x - a.x) * k / 4 + (k < 4 ? rnd(-10, 10) : 0), ny = a.y + (e.y - a.y) * k / 4 + (k < 4 ? rnd(-10, 10) : 0);
@@ -1584,15 +1596,15 @@ function boom(x, y, r, dP, dE, dep) {
   burst(x, y, RED, 8);
   sfx('boom');
   sk(120, .008);
-  if (dP) P.forEach((p) => p && !p.dn && dist(p.x, p.y, x, y) < r && hurtP(p, dP, x));
-  if (dE) foes().forEach((e) => dist(e.x, e.y, x, y) < r && dmgE(e, dE, 0, x, 160, 0, dep));
+  if (dP) P.fe((p) => p && !p.dn && dist(p.x, p.y, x, y) < r && hurtP(p, dP, x));
+  if (dE) foes().fe((e) => dist(e.x, e.y, x, y) < r && dmgE(e, dE, 0, x, 160, 0, dep));
 }
 
 // monedas
 function drop(x, y, v) {
-  const n = M.min(v, v > 20 ? 8 : 4);
+  const n = Mmin(v, v > 20 ? 8 : 4);
   for (let k = 0; k < n; k++) {
-    const c = S.add.image(x, y, 's16').setDepth(2);
+    const c = SA.image(x, y, 's16').Dp(2);
     Object.assign(c, { v: (v / n | 0) + (k < v % n ? 1 : 0), vx: rnd(-170, 170), vy: rnd(-420, -220), t: 0, ph: R() * 9 });
     cn.push(c);
   }
@@ -1601,7 +1613,7 @@ function coinsUp(dt) {
   cpT -= dt;
   cn = cn.filter((c) => {
     c.t += dt;
-    c.scaleX = .2 + ab(M.cos(tn / 110 + c.ph));
+    c.scaleX = .2 + ab(Mcos(tn / 110 + c.ph));
     if (c.t < .4) {
       c.vy += 1100 * dt;
       c.x += c.vx * dt;
@@ -1611,11 +1623,11 @@ function coinsUp(dt) {
     const p = nearP(c.x, c.y);
     if (!p) return 1;
     const a = ang(c, p), s = 250 + c.t * 900;
-    c.x += M.cos(a) * s * dt;
-    c.y += M.sin(a) * s * dt;
+    c.x += Mcos(a) * s * dt;
+    c.y += Msin(a) * s * dt;
     if (dist(c.x, c.y, p.x, p.y) > 18) return 1;
     coins += c.v;
-    cpn = cpT > 0 ? M.min(12, cpn + 1) : 0;
+    cpn = cpT > 0 ? Mmin(12, cpn + 1) : 0;
     cpT = .35;
     sfx('coin');
     burst(c.x, c.y, GOLD, 3);
@@ -1632,20 +1644,20 @@ function startBoss() {
   sfx('boss');
   sk(500, .01);
   cam.flash(250, 255, 60, 60);
-  S.physics.world.setBounds(2400, 0, W, WH, true, true, false, false);
+  SP.world.setBounds(2400, 0, W, WH, true, true, false, false);
   cam.setBounds(2400, 0, W, WH);
-  foes().forEach((e) => e.x < 2400 && refund(e));
-  P.forEach((p) => {
-    if (p && p.x < 2420) p.dn ? p.tb.setPosition(dep.x - 60, dep.y - 10) : p.body.reset(dep.x - 60, dep.y - 30);
+  foes().fe((e) => e.x < 2400 && refund(e));
+  P.fe((p) => {
+    if (p && p.x < 2420) p.dn ? p.tb.Po(dep.x - 60, dep.y - 10) : p.body.reset(dep.x - 60, dep.y - 30);
   });
-  const w = rect(2400, 0, 6, WH, RED, .8).setDepth(5);
+  const w = rect(2400, 0, 6, WH, RED, .8).Dp(5);
   tw(w, { alpha: .2, yoyo: true, repeat: -1, duration: 300 });
   lv.push(w);
   // el jefe final es DEADLINE (sprite 43); desde el segundo loop cada jefe trae a otro de escolta
   const k = fin ? 8 : 7 + (stage - 1) % 3, ni = fin ? 3 : k - 7, e = boss = mkBoss(k, fin ? 1.5 : 1);
   if (fin) {
     e.fin = 1;
-    e.setTexture('s43').setScale(1.3).body.setSize(70, 80);
+    e.Tx('s43').Sc(1.3).body.setSize(70, 80);
   }
   mus(fin ? 6 : k == 8 ? 4 : 3, 2.5);
   tone(110, 2.5, 'sawtooth', .06, 1760);
@@ -1671,7 +1683,7 @@ function dln(e, p, ph, dt) {
   if (e.st == 1) {
     // las 12 horas: una bala por hora, apuntada al jugador
     if (e.lt > e.n * .12 * ph) {
-      const a = e.n++ * .5236 - 1.57, x = e.x + M.cos(a) * 80, y = e.y + M.sin(a) * 80;
+      const a = e.n++ * .5236 - 1.57, x = e.x + Mcos(a) * 80, y = e.y + Msin(a) * 80;
       shoot(x, y, M.atan2(p.y - y, p.x - x), 250, 10 * e.dm, 0, PURPLE, 5, 5, 4);
       sfx('tic');
       if (e.n > 11) {
@@ -1681,9 +1693,9 @@ function dln(e, p, ph, dt) {
     }
   } else if (e.st == 2) {
     // la manecilla: un laser que da una vuelta completa; se cruza con el dash
-    const a = e.lt * 1.8 / ph + 1.57, c = M.cos(a), s = M.sin(a), on = e.lt > .7;
+    const a = e.lt * 1.8 / ph + 1.57, c = Mcos(a), s = Msin(a), on = e.lt > .7;
     G.lineStyle(on ? 14 : 2, on ? RED : WHITE, .8).lineBetween(e.x, e.y, e.x + c * 800, e.y + s * 800);
-    if (on) P.forEach((q) => q && !q.dn && (q.x - e.x) * c + (q.y - e.y) * s > 0 && ab((q.x - e.x) * s - (q.y - e.y) * c) < 16 && hurtP(q, 14 * e.dm, e.x));
+    if (on) P.fe((q) => q && !q.dn && (q.x - e.x) * c + (q.y - e.y) * s > 0 && ab((q.x - e.x) * s - (q.y - e.y) * c) < 16 && hurtP(q, 14 * e.dm, e.x));
     if (e.lt > .7 + 3.5 * ph) {
       e.st = 0;
       e.t = 1.2 * ph;
@@ -1700,7 +1712,7 @@ function dln(e, p, ph, dt) {
     dc(1300, () => boss && (mSong = m, mNext = 0));
     pop(400, 200, 'TIEMPO DETENIDO', 30, WHITE, 1, 1100);
     sfx('boss');
-    for (let j = 0; j < 10; j++) shoot(p.x + M.cos(j * .628) * 180, p.y + M.sin(j * .628) * 180, j * .628 + M.PI, 200, 12 * e.dm, 0, RED, 5, 5, 3);
+    for (let j = 0; j < 10; j++) shoot(p.x + Mcos(j * .628) * 180, p.y + Msin(j * .628) * 180, j * .628 + M.PI, 200, 12 * e.dm, 0, RED, 5, 5, 3);
   }
 }
 
@@ -1718,7 +1730,7 @@ function poseB(e, ni) {
     dc(1600, () => bd.destroy());
     pop(400, 404, '[ ' + BN[ni] + ' ]', 30, GOLD, 1, 1300);
     pop(400, 440, 'STAND: [' + BST[ni] + ']', 12, WHITE, 1, 1300);
-    for (let i = 0; i < 9; i++) dc(i * 140, () => fxi('s42', e.x + rnd(-110, 110), e.y + rnd(-70, 50), GREEN, 2, 3.5, 900).setBlendMode(0));
+    for (let i = 0; i < 9; i++) dc(i * 140, () => fxi('s42', e.x + rnd(-110, 110), e.y + rnd(-70, 50), GREEN, 2, 3.5, 900).Bm(0));
     sfx('boom');
     tone(58, 1.5, 'sawtooth', .16, 30);
   }
@@ -1743,7 +1755,7 @@ function upBoss(e, dt) {
   if (p2 && !e.p2) {
     e.p2 = 1;
     e.tn = 0xff8080;
-    e.setTint(e.tn);
+    e.Ti(e.tn);
     pop(400, 170, e.fin ? 'HORAS EXTRA' : 'FASE 2', 36, RED, 1, 900);
     stop(.35);
     if (cx) cx.negative();
@@ -1751,12 +1763,12 @@ function upBoss(e, dt) {
     sfx('boss');
   }
   if (k > 7) {
-    b.setVelocityY((cam.scrollY + (k > 8 ? 250 : 150 + demo * 200) + M.sin(tn / 500) * 20 - e.y) * 3);
-    if (p && (k > 8 || e.st != 2 || e.lt < .7)) b.setVelocityX(cl((p.x + (k > 8 ? M.sin(tn / 900) * 220 : 0) - e.x) * 2, -90, 90));
+    b.setVelocityY((cam.scrollY + (k > 8 ? 250 : 150 + demo * 200) + Msin(tn / 500) * 20 - e.y) * 3);
+    if (p && (k > 8 || e.st != 2 || e.lt < .7)) b.setVelocityX(cl((p.x + (k > 8 ? Msin(tn / 900) * 220 : 0) - e.x) * 2, -90, 90));
     else b.setVelocityX(0);
   }
   // DEADLINE no se queda quieto: recorre la arena en un ocho, mas rapido en HORAS EXTRA
-  if (e.fin) b.setVelocity((2800 + M.sin(tn / 900 / ph) * 330 - e.x) * 2, (cam.scrollY + 230 + M.sin(tn / 450 / ph) * 110 - e.y) * 2);
+  if (e.fin) b.setVelocity((2800 + Msin(tn / 900 / ph) * 330 - e.x) * 2, (cam.scrollY + 230 + Msin(tn / 450 / ph) * 110 - e.y) * 2);
   if (e.ent > 0) {
     if ((e.ent -= dt) <= 0) sk(250, .015);
     return;
@@ -1776,15 +1788,15 @@ function upBoss(e, dt) {
     } else if (e.st == 1) {
       b.setVelocityX(0);
       e.x += rnd(-2, 2);
-      e.setTintFill((e.t * 16 | 0) % 2 ? 0xffffff : RED);
+      e.Tf((e.t * 16 | 0) % 2 ? 0xffffff : RED);
       if (e.t <= 0) {
-        e.tn ? e.setTint(e.tn) : e.clearTint();
+        e.tn ? e.Ti(e.tn) : e.clearTint();
         if (e.a == 'A') {
           b.setVelocity(cl(dx / 1.1, -300, 300), -620);
           e.st = 2;
         } else if (e.a == 'B') {
           const n = ph < 1 ? 7 : 5;
-          [-30, 30].forEach((o) => {
+          [-30, 30].fe((o) => {
             const a0 = M.atan2(p.y - e.y + 20, dx - o);
             for (let j = 0; j < n; j++) shoot(e.x + o, e.y - 20, a0 + (j / (n - 1) - .5) * .87, 230, 10 * e.dm, 0, RED, 5, 5, 3);
           });
@@ -1804,7 +1816,7 @@ function upBoss(e, dt) {
         sfx('boom');
         burst(e.x, b.bottom, STEEL, 20);
         ring(e.x, b.bottom, GOLD, 3);
-        [-1, 1].forEach((s) => shoot(e.x + s * 40, b.bottom - 12, s > 0 ? 0 : M.PI, 300, 16 * e.dm, 0, GOLD, 8, 12, 1.2));
+        [-1, 1].fe((s) => shoot(e.x + s * 40, b.bottom - 12, s > 0 ? 0 : M.PI, 300, 16 * e.dm, 0, GOLD, 8, 12, 1.2));
         b.setVelocityX(0);
         e.st = 0;
         e.t = 1.1 * ph;
@@ -1886,7 +1898,7 @@ function upBoss(e, dt) {
       if (ph < 1) e.lx += sg(p.x - e.lx) * 120 * dt;
       G.fillStyle(CYAN, .55).fillRect(e.lx - 20, y0, 40, gy - y0).fillStyle(0xffffff, 1).fillRect(e.lx - 7, y0, 14, gy - y0);
       burst(e.lx, gy, CYAN, 2);
-      P.forEach((q) => q && !q.dn && ab(q.x - e.lx) < 27 && hurtP(q, 22 * e.dm, e.lx));
+      P.fe((q) => q && !q.dn && ab(q.x - e.lx) < 27 && hurtP(q, 22 * e.dm, e.lx));
     } else {
       e.st = 0;
       e.t = 1.1 * ph;
@@ -1913,14 +1925,14 @@ function bossDie(e) {
       sk(200, .02);
     });
   }
-  foes().forEach((o) => {
+  foes().fe((o) => {
     if (o != e) {
       burst(o.x, o.y, EN[o.k][8], 10);
       o.hp = 0;
-      o.disableBody(true, true);
+      o.Db(true, true);
     }
   });
-  live(bullets).forEach((b) => !b.own && kb(b));
+  live(bullets).fe((b) => !b.own && kb(b));
   cam.flash(400, 255, 255, 255);
   emitter('cf').explode(80, x, y - 40);
   dc(500, () => {
@@ -1946,17 +1958,17 @@ function give(id, q) {
   if (!inv[id]++) {
     ord.push(id);
     const x = 20 + (ord.length - 1) * 34;
-    ii[id] = [hud(S.add.image(x, 582, 's' + (22 + id))), hud(txt(x + 10, 566, '', 6, WHITE, .5))];
+    ii[id] = [hud(SA.image(x, 582, 's' + (22 + id))), hud(txt(x + 10, 566, '', 6, WHITE, .5))];
     if (!demo) tw(ii[id][0], { scale: { from: 3, to: 1 }, duration: 400, ease: 'Back.easeOut' });
   }
-  ii[id][1].setText(inv[id] > 1 ? 'X' + inv[id] : '');
+  ii[id][1].Te(inv[id] > 1 ? 'X' + inv[id] : '');
   recalc();
-  if (id == 4) P.forEach((p) => p && (p.hp = M.min(mhp, p.hp + 25)));
-  if (id == 11) P.forEach((p) => p && (p.sh = 1));
+  if (id == 4) P.fe((p) => p && (p.hp = Mmin(mhp, p.hp + 25)));
+  if (id == 11) P.fe((p) => p && (p.sh = 1));
   if (!q && mode == 'PLAY') {
     const c = RAR[rarOf(id)];
-    cd1.setText(IT[id * 2] + (inv[id] > 1 ? ' X' + inv[id] : '')).setTint(c).setScale(0);
-    cd2.setText(IT[id * 2 + 1]);
+    cd1.Te(IT[id * 2] + (inv[id] > 1 ? ' X' + inv[id] : '')).Ti(c).Sc(0);
+    cd2.Te(IT[id * 2 + 1]);
     tw(cd1, { scale: 1, duration: 300, ease: 'Back.easeOut' });
     cardT = 2.5;
   }
@@ -1981,7 +1993,7 @@ function reveal(x, y, id, h) {
 }
 
 function roll(t, id) {
-  const ic = S.add.image(t.x, t.y - 48, 's22').setDepth(7).setScale(2);
+  const ic = SA.image(t.x, t.y - 48, 's22').Dp(7).Sc(2);
   lv.push(ic);
   rolls.push([ic, 0, 0, id]);
   t.busy = 1;
@@ -1993,21 +2005,21 @@ function upRolls(dt) {
     if ((r[1] += dt) < (lg ? 2.2 : 1)) {
       if (r[1] >= r[2]) {
         r[2] = r[1] + .04 + r[1] * r[1] * (lg ? .03 : .2);
-        r[0].setTexture('s' + (22 + ri(0, 19)));
+        r[0].Tx('s' + (22 + ri(0, 19)));
         tone(700 + 800 * r[1], .02, 0, .04);
       }
       if (r[1] > 1) {
-        r[0].setScale(1 + r[1]);
+        r[0].Sc(1 + r[1]);
         burst(r[0].x, r[0].y, GOLD, 1);
         sk(50, .003 * r[1]);
       }
       return 1;
     }
     const id = r[3], o = r[0];
-    o.setTexture('s' + (22 + id));
+    o.Tx('s' + (22 + id));
     reveal(o.x, o.y, id);
     give(id);
-    terms.forEach((t) => t.rl == o && (t.busy = 0));
+    terms.fe((t) => t.rl == o && (t.busy = 0));
     tw(o, { scale: 5, alpha: 0, duration: 700, ease: 'Cubic.easeIn', onComplete: () => o.destroy() });
     return 0;
   });
@@ -2018,10 +2030,10 @@ function openG() {
   if (demo) return go(-1);
   if (mode != 'PLAY') return;
   mode = 'GACHA';
-  S.physics.pause();
+  SP.pause();
   combo = 0;
-  coT.setText('');
-  cn.forEach((c) => {
+  coT.Te('');
+  cn.fe((c) => {
     coins += c.v;
     c.destroy();
   });
@@ -2050,7 +2062,7 @@ function openG() {
     add(txt(x, 184, j < 3 ? 'GRATIS' : 'TIENDA', 12, j < 3 ? GREEN : GOLD, .5));
     const f = add(rect(x - 50, 206, 100, 100, 0x33415a), 30.2);
     add(rect(x - 46, 210, 92, 92, 0x0b0f14), 30.4);
-    return [add(S.add.image(x, 256, 's22').setScale(4).setVisible(j < 3)), add(txt(x, 322, '', 12, WHITE, .5)), add(txt(x, 342, '', 6, STEEL, .5)), j < 3 ? tt += .7 + (rarOf(ids[j]) > 1) : -1, ids[j], 0, 0, f, x];
+    return [add(SA.image(x, 256, 's22').Sc(4).Vi(j < 3)), add(txt(x, 322, '', 12, WHITE, .5)), add(txt(x, 342, '', 6, STEEL, .5)), j < 3 ? tt += .7 + (rarOf(ids[j]) > 1) : -1, ids[j], 0, 0, f, x];
   });
   cT2 = add(txt(400, 390, '', 12, LIME, .5));
   add(txt(400, 414, stage > 2 ? '[START] LOOP  [B2] JEFE FINAL' : '[START] SIGUIENTE SERVER', 12, stage > 2 ? GOLD : WHITE, .5));
@@ -2060,35 +2072,35 @@ function openG() {
 function upGacha(dt) {
   gT += dt;
   const sp = gs.some((s) => s[3] > gT);
-  lt.forEach((d, k) => d.setTint((k + (gT * (sp ? 24 : 8) | 0)) % 4 ? 0x33415a : sp ? pick([GOLD, PINK, CYAN]) : GOLD));
-  gs.forEach((s) => {
+  lt.fe((d, k) => d.Ti((k + (gT * (sp ? 24 : 8) | 0)) % 4 ? 0x33415a : sp ? pick([GOLD, PINK, CYAN]) : GOLD));
+  gs.fe((s) => {
     if (s[3] < 0) return;
     if (gT < s[3]) {
       if (rarOf(s[4]) > 1 && s[3] - gT < 1) {
-        s[0].setScale(6 - (s[3] - gT) * 2);
+        s[0].Sc(6 - (s[3] - gT) * 2);
         burst(s[8], 256, GOLD, 1, 1);
       }
       if ((gT * 18 | 0) != s[6]) {
         s[6] = gT * 18 | 0;
-        s[0].setTexture('s' + (22 + ri(0, 19))).setVisible(1);
+        s[0].Tx('s' + (22 + ri(0, 19))).Vi(1);
         sfx('tic');
       }
     } else if (!s[5]) {
       s[5] = 1;
       const id = s[4], c = RAR[rarOf(id)];
-      s[0].setTexture('s' + (22 + id));
-      s[1].setText(IT[id * 2]).setTint(c);
-      s[2].setText(IT[id * 2 + 1]);
-      s[7].setTint(c);
+      s[0].Tx('s' + (22 + id));
+      s[1].Te(IT[id * 2]).Ti(c);
+      s[2].Te(IT[id * 2 + 1]);
+      s[7].Ti(c);
       tw(s[0], { scale: { from: 6, to: 4 }, duration: 300, ease: 'Back.easeOut' });
       reveal(s[8], 256, id, 1);
       give(id, 1);
     }
   });
   const pr = 18 + 5 * paid, s3 = gs[3];
-  cT2.setText('[B1] NPM INSTALL $' + pr).setTint(coins < pr ? RED : LIME);
-  pT.setText('LEGENDARIO EN: ' + (10 - pity));
-  cT3.setText('$' + coins);
+  cT2.Te('[B1] NPM INSTALL $' + pr).Ti(coins < pr ? RED : LIME);
+  pT.Te('LEGENDARIO EN: ' + (10 - pity));
+  cT3.Te('$' + coins);
   rep -= dt;
   if ((any('1') || ((dn(0, '1') || dn(1, '1')) && rep < 0)) && !(s3[3] > gT)) {
     rep = .35;
@@ -2099,17 +2111,17 @@ function upGacha(dt) {
       s3[4] = rollItem(0);
       s3[3] = gT + .5 + (rarOf(s3[4]) > 1);
       s3[5] = 0;
-      s3[1].setText('');
-      s3[2].setText('');
+      s3[1].Te('');
+      s3[2].Te('');
     }
   }
   if (gT > 3 && !sp && stage > 2 && any('2')) fin = 1;
   if (gT > 3 && !sp && (fin || hk('START1') || hk('START2') || performance.now() - lastIn > 2e4)) closeG();
 }
 function closeG() {
-  gp.forEach((o) => o.destroy());
+  gp.fe((o) => o.destroy());
   mode = 'PLAY';
-  S.physics.resume();
+  SP.resume();
   stage++;
   buildStage();
 }
@@ -2117,14 +2129,14 @@ function closeG() {
 // ---------------------------------------------------------------- pausa, fin y titulo
 function pause() {
   mode = 'PAUSE';
-  S.physics.pause();
+  SP.pause();
   pR = held.START1 || held.START2;
   stH = 0;
   pO = [];
   const add = (o) => (pO.push(o), o.sf(40));
   add(rect(0, 0, W, H, 0, .8));
   add(txt(400, 40, 'PAUSA', 36, LIME, .5));
-  CT.forEach((t, k) => add(txt(400, 84 + k * 14, t, 12, STEEL, .5)));
+  CT.fe((t, k) => add(txt(400, 84 + k * 14, t, 12, STEEL, .5)));
   add(txt(400, 560, 'START: SEGUIR  MANTENER: SALIR', 12, WHITE, .5));
 }
 function upPause(dt) {
@@ -2133,9 +2145,9 @@ function upPause(dt) {
   } else if (stH > 0 || kq.some((c) => c[0] == 'S')) {
     if (pR) pR = 0;
     else {
-      pO.forEach((o) => o.destroy());
+      pO.fe((o) => o.destroy());
       mode = 'PLAY';
-      S.physics.resume();
+      SP.resume();
     }
     stH = 0;
   }
@@ -2144,47 +2156,47 @@ function upPause(dt) {
 function over() {
   if (mode != 'PLAY' || (!won && P.some((q) => q && !q.dn))) return;
   mode = 'OVER';
-  S.physics.pause();
+  SP.pause();
   oT = 0;
   mus(-1);
   if (!won) for (let i = 4; i--;) tone(kn(i) / 2, .8, 'triangle', .12, 0, (3 - i) * .3);
   const add = (o) => o.sf(40);
   add(rect(0, 0, W, H, 0, .8));
   add(txt(400, 46, won ? 'PROD IS UP! GANASTE' : 'PROD SIGUE CAIDO', 36, won ? GREEN : RED, .5));
-  add(txt(400, 90, 'RANGO: ' + RK[won ? 6 : M.min(6, stage - 1)], 18, GOLD, .5));
-  ['SERVER ' + stage + '  BUGS ' + kills, 'DEUDA LV ' + lvl + '  ITEMS ' + itc, 'PTS ' + score].forEach((s, k) => add(txt(400, 130 + k * 26, s, 12, k > 1 ? GOLD : WHITE, .5)));
+  add(txt(400, 90, 'RANGO: ' + RK[won ? 6 : Mmin(6, stage - 1)], 18, GOLD, .5));
+  ['SERVER ' + stage + '  BUGS ' + kills, 'DEUDA LV ' + lvl + '  ITEMS ' + itc, 'PTS ' + score].fe((s, k) => add(txt(400, 130 + k * 26, s, 12, k > 1 ? GOLD : WHITE, .5)));
   oq = score > 0 && (hi.length < 5 || score > hi[hi.length - 1][1]);
   if (oq || won) dc(1200, () => {
     if (cx) cx.reset();
-    emitter('cf', 1).setDepth(41).explode(90, 400, 300);
+    emitter('cf', 1).Dp(41).explode(90, 400, 300);
     ka(6, .08, .08);
   });
   nm = [0, 0, 0];
   nc = 0;
   nT = add(txt(400, 300, '', 36, LIME, .5));
   oL = [0, 1, 2, 3, 4, 5, 6].map((k) => add(txt(400, 270 + k * 24, '', k ? 12 : 18, WHITE, .5)));
-  if (oq) oL[0].setText(two ? 'RECORD DE EQUIPO!' : 'NUEVO RECORD!').setTint(GOLD);
+  if (oq) oL[0].Te(two ? 'RECORD DE EQUIPO!' : 'NUEVO RECORD!').Ti(GOLD);
   else table(-1);
 }
 const AZ = FONT_CHARS.slice(1, 37);
 function table(nw) {
-  nT.setText('');
-  oL[0].setText('RECORDS').setTint(GOLD);
+  nT.Te('');
+  oL[0].Te('RECORDS').Ti(GOLD);
   for (let k = 0; k < 5; k++) {
     const r = hi[k];
-    oL[k + 1].setText(r ? k + 1 + '. ' + r[0] + '   ' + r[1] + '   SRV ' + r[2] : k + 1 + '. ---').setTint(k == nw ? LIME : WHITE);
+    oL[k + 1].Te(r ? k + 1 + '. ' + r[0] + '   ' + r[1] + '   SRV ' + r[2] : k + 1 + '. ---').Ti(k == nw ? LIME : WHITE);
   }
-  oL[6].setText('START: OTRA VEZ').setTint(STEEL);
+  oL[6].Te('START: OTRA VEZ').Ti(STEEL);
 }
 function upOver(dt) {
   if ((oT += dt) < 1.2) return;
   if (oq) {
     if (any('U')) nm[nc] = (nm[nc] + 1) % 36;
     if (any('D')) nm[nc] = (nm[nc] + 35) % 36;
-    if (any('L')) nc = M.max(0, nc - 1);
-    if (any('R')) nc = M.min(2, nc + 1);
-    nT.setText(nm.map((c, k) => (k == nc && (oT * 4 | 0) % 2 ? '_' : AZ[c])).join(' '));
-    oL[6].setText('JOYSTICK: LETRA  B1: OK').setTint(STEEL);
+    if (any('L')) nc = Mmax(0, nc - 1);
+    if (any('R')) nc = Mmin(2, nc + 1);
+    nT.Te(nm.map((c, k) => (k == nc && (oT * 4 | 0) % 2 ? '_' : AZ[c])).join(' '));
+    oL[6].Te('JOYSTICK: LETRA  B1: OK').Ti(STEEL);
     if (any('1') || hk('START1') || hk('START2') || performance.now() - lastIn > 3e4) {
       const r = [nm.map((c) => AZ[c]).join(''), score, stage];
       hi.push(r);
@@ -2205,7 +2217,7 @@ function upOver(dt) {
 function go(i) {
   startWith = i;
   mus(-1);
-  S.physics.world.timeScale = 1;
+  SP.world.timeScale = 1;
   S.scene.restart();
   return 1;
 }
@@ -2216,8 +2228,8 @@ function mkTitle() {
   a(rect(0, 0, W, H, 0, .3));
   a(txt(406, 66, 'PROD IS', 78, 0x2456c9, .5));
   a(txt(400, 60, 'PROD IS', 78, WHITE, .5));
-  g1 = a(txt(400, 150, 'DOWN', 132, CYAN, .5)).setAlpha(.85);
-  g2 = a(txt(400, 150, 'DOWN', 132, PINK, .5)).setAlpha(.85);
+  g1 = a(txt(400, 150, 'DOWN', 132, CYAN, .5)).Al(.85);
+  g2 = a(txt(400, 150, 'DOWN', 132, PINK, .5)).Al(.85);
   a(txt(400, 150, 'DOWN', 132, RED, .5));
   a(txt(400, 300, 'ROGUELIKE DE GUARDIA - 1-2 JUGADORES', 12, LIME, .5));
   prm = a(txt(400, 420, 'PULSA START', 18, WHITE, .5));
@@ -2227,15 +2239,15 @@ function titleUp(dt) {
   demoT += dt;
   const now = tn;
   if ((now / 90 | 0) % 5 == 0) {
-    g1.setPosition(400 + rnd(-9, 9), 150 + rnd(-3, 3));
-    g2.setPosition(400 + rnd(-9, 9), 150 + rnd(-3, 3));
+    g1.Po(400 + rnd(-9, 9), 150 + rnd(-3, 3));
+    g2.Po(400 + rnd(-9, 9), 150 + rnd(-3, 3));
   }
-  prm.setVisible((now / 400 | 0) % 2);
+  prm.Vi((now / 400 | 0) % 2);
   const k = (demoT / 5 | 0) % 3;
   const L = k == 0 ? ['RECORDS'].concat([0, 1, 2, 3, 4].map((j) => (hi[j] ? j + 1 + '. ' + hi[j][0] + '   ' + hi[j][1] + '   SRV ' + hi[j][2] : j + 1 + '. ---')))
     : k == 1 ? ['CONTROLES', 'JOYSTICK: MOVER/APUNTAR', ...CT, 'START: ENTRAR / PAUSA']
     : ['VIERNES 23:59', 'ALGUIEN HIZO PUSH A MAIN.', 'PROD SE CAYO. ESTAS DE GUARDIA.', 'CADA BUG MUERTO SUBE LA DEUDA.'];
-  tl.forEach((t, j) => t.setText(L[j]));
+  tl.fe((t, j) => t.Te(L[j]));
   for (const c of kq) {
     if (c == 'START1' || c[1] == '1') return go(0);
     if (c == 'START2' || c[1] == '2') return go(1);
@@ -2268,7 +2280,7 @@ function mkHud() {
   hud(rect(300, 24, 200, 8, 0x1b2430));
   dF = hud(rect(300, 24, 200, 8, LIME));
   dN = hud(txt(400, 38, '', 12, LIME, .5));
-  hud(S.add.image(20, 52, 's16').setScale(1.5));
+  hud(SA.image(20, 52, 's16').Sc(1.5));
   cT = hud(txt(32, 44, '', 18, GOLD));
   cB = 1;
   sT = hud(txt(12, 70, '', 12, STEEL));
@@ -2280,42 +2292,42 @@ function mkHud() {
   coT = hud(txt(788, 34, '', 18, GOLD, 1));
   cd1 = hud(txt(400, 512, '', 18, WHITE, .5, .5));
   cd2 = hud(txt(400, 534, '', 12, WHITE, .5));
-  vig = hud(rect(0, 0, W, H, RED, 0)).setBlendMode(1);
+  vig = hud(rect(0, 0, W, H, RED, 0)).Bm(1);
   cshow = 0;
 }
 function hudUp(dt) {
   const now = tn;
   lowHp = 0;
-  hP.forEach((h, i) => {
+  hP.fe((h, i) => {
     const p = P[i];
-    h.forEach((o, j) => o.setVisible(j < 6 ? !!p : !p && (now / 500 | 0) % 2));
+    h.fe((o, j) => o.Vi(j < 6 ? !!p : !p && (now / 500 | 0) % 2));
     if (!p) return;
-    const f = M.max(0, p.hp) / mhp;
+    const f = Mmax(0, p.hp) / mhp;
     if (f < .3 && !p.dn) lowHp = 1;
-    h[2].setScale(60 * f, 5).setTint(f < .3 ? ((now / 150 | 0) % 2 ? RED : 0xffffff) : GREEN);
-    h[3].setAlpha(p.cdD <= 0 ? 1 : .2);
-    h[4].setAlpha(p.cdS <= 0 ? 1 : .2);
-    h[5].setVisible(!!p.sh);
+    h[2].Sc(60 * f, 5).Ti(f < .3 ? ((now / 150 | 0) % 2 ? RED : 0xffffff) : GREEN);
+    h[3].Al(p.cdD <= 0 ? 1 : .2);
+    h[4].Al(p.cdS <= 0 ? 1 : .2);
+    h[5].Vi(!!p.sh);
   });
-  vig.setAlpha(lowHp ? .1 + .06 * M.sin(now / 120) : 0);
-  dT.setText('DEUDA TECNICA LV ' + lvl).setTint(lvCol(lvl));
-  dF.setScale(100 * (debt % 18) / 18, 4).setTint(lvCol(lvl));
-  dN.setText(lvName(lvl)).setTint(lvCol(lvl));
-  if (cshow != coins) cshow += M.sign(coins - cshow) * M.max(1, ab(coins - cshow) * .2 | 0);
-  cT.setText('$' + cshow).setScale(cB);
-  cB = M.max(1, cB - dt * 3);
-  sT.setText('PTS ' + score);
-  stT.setText('SERVER ' + stage + ': ' + BIO[bio] + (inc ? ' + ' + INC[inc] : ''));
-  arw.setVisible(!stg && dep.x - cam.scrollX > W && (now / 300 | 0) % 2).setY(cl(dep.y - cam.scrollY - 40, 100, 560));
-  [bN, bB, bF].forEach((o) => o.setVisible(!!boss));
+  vig.Al(lowHp ? .1 + .06 * Msin(now / 120) : 0);
+  dT.Te('DEUDA TECNICA LV ' + lvl).Ti(lvCol(lvl));
+  dF.Sc(100 * (debt % 18) / 18, 4).Ti(lvCol(lvl));
+  dN.Te(lvName(lvl)).Ti(lvCol(lvl));
+  if (cshow != coins) cshow += M.sign(coins - cshow) * Mmax(1, ab(coins - cshow) * .2 | 0);
+  cT.Te('$' + cshow).Sc(cB);
+  cB = Mmax(1, cB - dt * 3);
+  sT.Te('PTS ' + score);
+  stT.Te('SERVER ' + stage + ': ' + BIO[bio] + (inc ? ' + ' + INC[inc] : ''));
+  arw.Vi(!stg && dep.x - cam.scrollX > W && (now / 300 | 0) % 2).setY(cl(dep.y - cam.scrollY - 40, 100, 560));
+  [bN, bB, bF].fe((o) => o.Vi(!!boss));
   if (boss) {
-    bN.setText(BN[boss.fin ? 3 : boss.k - 7]);
-    bF.setScale(200 * M.max(0, boss.hp) / boss.mhp, 5);
+    bN.Te(BN[boss.fin ? 3 : boss.k - 7]);
+    bF.Sc(200 * Mmax(0, boss.hp) / boss.mhp, 5);
   }
-  coT.setText(combo > 2 ? (flow ? 'FLOW X' : 'COMBO X') + combo : '').setScale(1 + M.min(combo, 50) / 60 + (comboT > 2.1 ? .3 : 0));
-  coT.setTint(flow ? hsv(now / 500) : GOLD);
-  cd1.setVisible(cardT > 0);
-  cd2.setVisible(cardT > 0);
+  coT.Te(combo > 2 ? (flow ? 'FLOW X' : 'COMBO X') + combo : '').Sc(1 + Mmin(combo, 50) / 60 + (comboT > 2.1 ? .3 : 0));
+  coT.Ti(flow ? hsv(now / 500) : GOLD);
+  cd1.Vi(cardT > 0);
+  cd2.Vi(cardT > 0);
   cardT -= dt;
 }
 
@@ -2329,9 +2341,9 @@ function cheat(k) {
   }
   if (k == '5') coins += 100;
   if (k == '6') debt += 20;
-  if (k == '7') P.forEach((p) => p && !p.dn && p.body.reset(2450 + p.i * 30, 17 * T - 14));
+  if (k == '7') P.fe((p) => p && !p.dn && p.body.reset(2450 + p.i * 30, 17 * T - 14));
   if (k == '8') give(ri(0, 19));
-  if (k == '9') foes().forEach((e) => dmgE(e, e.boss ? e.mhp / 4 : 9999, 0, e.x, 0));
+  if (k == '9') foes().fe((e) => dmgE(e, e.boss ? e.mhp / 4 : 9999, 0, e.x, 0));
   if (k == '0' && P[0]) hurtP(P[0], 30, P[0].x, 1);
 }
 
